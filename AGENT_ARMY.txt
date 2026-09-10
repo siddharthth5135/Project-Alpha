@@ -1,0 +1,432 @@
+================================================================================
+PROJECT ALPHA — AGENT ARMY MODULE (ENHANCED)
+LLM usage: ONLINE vs OFFLINE | Exact models & APIs | Cursor Pro+ policy
+Date: 2026-07-24 | Audience: HoQR + SW/AI eng
+================================================================================
+
+PURPOSE
+-------
+Replace vague “agents use AI” talk with a hard map:
+  - Which agents need LLM at all
+  - Online LLM vs offline LLM vs offline QUANT models (three different things)
+  - What you buy / install Day-1 with ONLY Cursor Pro+ today
+  - What Portfolio Agent does (spoiler: NO LLM)
+
+
+================================================================================
+0. THREE LAYERS — DO NOT CONFUSE
+================================================================================
+
+LAYER 1 — OFFLINE QUANT MODELS (REQUIRED for trading)
+  What  : LightGBM / sklearn / statsmodels / GARCH
+  Where : Your PC / research machine / later India VPS
+  Role  : Alpha signals + Loss Prediction scores
+  LLM?  : NO. These are NOT language models.
+  Cost  : Free (pip install). No OpenAI/Anthropic account needed.
+
+LAYER 2 — ONLINE LLM (OPTIONAL until Phase 1 intelligence; REQUIRED for build)
+  What  : Cursor Pro+ (you have this) + later optional OpenAI/Anthropic API keys
+  Where : Cursor IDE / Cloud Agents / batch scripts calling provider APIs
+  Role  : Write code, tests, docs; later extract news/filings as FEATURES
+  Cost  : Cursor Pro+ already paid (~USD 60/mo). Extra API keys = USD 0 until Phase later.
+
+LAYER 3 — OFFLINE / LOCAL LLM WEIGHTS (NOT NEEDED Year-1)
+  What  : Llama / Mistral / Qwen / local Ollama etc.
+  Role  : Privacy-sensitive doc assist OR air-gapped extract — optional later
+  Verdict: Do NOT download for trading or Portfolio. Zero accuracy gain for mid-freq
+           tabular NSE alpha. Hardware cost + ops for no edge.
+
+
+HARD VERDICT FOR YOUR CURRENT STATE
+-----------------------------------
+You have: Cursor Pro+ only. No OpenAI/Anthropic key. No local LLM downloaded.
+That is CORRECT for Phase 0–1 foundation.
+
+  Day-1 need  : Cursor Pro+ (build) + pip quant libs (alpha/loss)
+  Day-1 skip  : OpenAI/Anthropic API keys, Ollama, HuggingFace trading LLMs
+  Later add   : ONE cloud LLM API key ONLY when News/Events Agent goes live
+                as a verified feature pipeline (not for sizing)
+
+
+================================================================================
+1. CAN YOU USE CURSOR PRO+ AS YOUR “ONLINE API”?
+================================================================================
+
+YES — for BUILD-TIME (recommended primary path).
+NO  — as the live trading brain / Portfolio / Risk / size decision.
+
+WHAT CURSOR PRO+ GIVES YOU (as of Cursor pricing docs, mid-2026)
+  Plan price     : ~USD 60 / month (Pro Plus)
+  Pool A         : Cursor Models — generous usage (Composer 2.5, Grok 4.5)
+  Pool B         : Other Models — ~USD 70 / month included at provider API rates
+                   (Claude / GPT / Gemini etc. when you pick them inside Cursor)
+  Also includes  : Agent in IDE, Cloud Agents (consume usage), Bugbot access
+
+HOW TO USE IT ON PROJECT ALPHA
+  USE for:
+    - Scaffold repo, Risk Kernel, broker adapters, backtest harness
+    - Write Portfolio Construction CODE (optimizer — not chat sizing)
+    - Unit tests for risk/loss contracts
+    - Draft Manager prompts / LangGraph stubs
+    - Docs, runbooks, design review
+    - Cloud Agents for long refactors / CI-style code tasks
+
+  DO NOT use for:
+    - Live “should I buy/sell/cut?” decisions
+    - Portfolio weight calculation at trade time
+    - Risk veto / limit relaxation
+    - Replacing Loss Prediction model scores
+    - Unverified news → order
+
+IMPORTANT DISTINCTION
+  Cursor Pro+ = your ENGINEERING LLM subscription (inside Cursor product).
+  It is NOT a generic “drop key into Python trading bot” API for production
+  order loops. For a scheduled News extract job outside Cursor, you later buy
+  a real provider API key (OpenAI or Anthropic) OR call Cursor Cloud Agent API
+  only for build/ops automation — still never for size/risk.
+
+BYOK (bring your own OpenAI/Anthropic key into Cursor)
+  Optional cost control for some chat paths; Cloud Agents do NOT use BYOK.
+  You do NOT need BYOK Day-1.
+
+
+================================================================================
+2. DOES PORTFOLIO AGENT NEED AN LLM?
+================================================================================
+
+ANSWER: NO.
+
+Portfolio Construction Agent = DETERMINISTIC CODE / OPTIMIZATION.
+  Inputs  : promoted signal scores, risk budgets, lot sizes, cash, constraints
+  Process : mean-variance / risk-parity-lite / score→weight with hard caps
+  Output  : draft target weights / lots (proposal only)
+
+Why no LLM:
+  - Weights must be reproducible, auditable, unit-testable
+  - SEBI/broker/audit trail needs deterministic sizing math
+  - LLM “feels like reduce Reliance 2%” is not a desk
+
+LLM MAY help only at BUILD-TIME:
+  Cursor writes the portfolio optimizer code + tests.
+  At RUN-TIME the optimizer is pure Python/numpy — zero LLM calls.
+
+
+================================================================================
+3. REFRAMED AGENT ARMY — FULL ROSTER + LLM POLICY
+================================================================================
+
+Legend
+  LLM_RT   = Run-time LLM call (during desk loops)
+  LLM_BT   = Build-time LLM only (Cursor writes the component)
+  QUANT    = Offline classical ML/stats artifact (not LLM)
+  CODE     = Deterministic Python (no model call)
+  NONE     = No model
+
+Hierarchy
+  HoQR (human)
+    └── Desk Manager Agent
+          ├── Market Intelligence pod
+          ├── Research pod
+          ├── Portfolio & Loss & Risk pod
+          ├── Execution pod
+          └── Ops & Governance pod
+
+
+-----------------------------------------------------------------------------
+3.1 CONTROL PLANE
+-----------------------------------------------------------------------------
+
+| Component              | Job                                      | LLM_RT | LLM_BT | Runtime engine        |
+|------------------------|------------------------------------------|--------|--------|-----------------------|
+| HoQR (human)           | Policy, capital, promote/kill            | NONE   | optional review via Cursor | Human |
+| Desk Manager Agent     | Route tasks, commit after gates, escalate| THIN*  | YES    | Rules + optional LLM router |
+
+* Manager LLM_RT: OPTIONAL thin router (classify “which specialist?”, draft digest).
+  MUST NOT compute size, risk, or veto. Prefer rules/job-queue first; add LLM
+  router only if orchestration complexity needs it. Start CODE-first.
+
+
+-----------------------------------------------------------------------------
+3.2 MARKET INTELLIGENCE POD
+-----------------------------------------------------------------------------
+
+| Agent                  | Job                                      | LLM_RT | LLM_BT | Runtime engine        |
+|------------------------|------------------------------------------|--------|--------|-----------------------|
+| Market Data Agent      | Feeds, corp actions, F&O continuous      | NONE   | YES    | CODE + broker/data API|
+| News / Events Agent    | Calendar, filings → FEATURES only        | YES**  | YES    | Online LLM + parsers  |
+| Regime Detection Agent | Vol/trend/liquidity regime labels        | NONE   | YES    | QUANT/CODE (rules, GARCH, later HMM) |
+
+** News/Events LLM_RT: ONLY online LLM for extract/summarize WITH source spans
+   + verification rules. Output = features for alpha/loss — NEVER an order.
+   Phase to enable: AFTER foundation + first strategy paper path exists.
+   Until then: stub calendar features without LLM.
+
+
+-----------------------------------------------------------------------------
+3.3 RESEARCH POD
+-----------------------------------------------------------------------------
+
+| Agent                  | Job                                      | LLM_RT | LLM_BT | Runtime engine        |
+|------------------------|------------------------------------------|--------|--------|-----------------------|
+| Strategy Research Agent| Hypotheses, lit scan, trial intake       | OPTIONAL| YES   | Human + LLM assist    |
+| Feature Engineering Agent | PIT features, schemas, QA             | NONE   | YES    | CODE (pandas/polars)  |
+| Model Training Agent   | Offline train + serialize artifacts      | NONE   | YES    | QUANT (LightGBM etc.) |
+| Backtest / Validation Agent | Walk-forward, costs, capacity       | NONE   | YES    | CODE + cost model     |
+
+Research LLM notes:
+  Strategy Research MAY use Cursor/online LLM to draft hypothesis cards.
+  Training/Backtest NEVER call LLM for labels or promote decisions.
+
+
+-----------------------------------------------------------------------------
+3.4 PORTFOLIO & LOSS & RISK POD  (CRITICAL PATH)
+-----------------------------------------------------------------------------
+
+| Agent / component      | Job                                      | LLM_RT | LLM_BT | Runtime engine        |
+|------------------------|------------------------------------------|--------|--------|-----------------------|
+| Portfolio Construction | Draft weights under budgets              | NONE   | YES    | CODE / optimizer      |
+| Loss Prediction Agent  | P(hit stop), ES → skip/cut/flatten       | NONE   | YES    | QUANT (GBDT/classifier)|
+| RISK KERNEL            | Hard ceilings, kill, absolute veto       | NONE   | YES*** | CODE only             |
+
+*** Risk Kernel: Cursor may WRITE the code at build-time. At run-time ZERO LLM.
+    Absolute veto. Manager cannot override.
+
+
+ORDER PATH (unchanged, now with engine types)
+  Promoted QUANT signal
+    → Portfolio Construction [CODE] draft size
+    → Loss Prediction [QUANT] skip / cut / flatten / hold
+    → Risk Kernel [CODE] hard veto / halt / force flatten
+    → Desk Manager commit [rules]
+    → Execution [CODE]
+
+
+Stop-loss / remove-from-portfolio (who answers)
+  Soft path risk     → Loss Prediction QUANT model (not LLM)
+  Hard stop / DD / daily loss / concentration → Risk Kernel CODE
+  Draft exit size    → Portfolio CODE
+  Place exit order   → Execution CODE after Manager commit
+  Kill strategy live → HoQR human
+
+
+-----------------------------------------------------------------------------
+3.5 EXECUTION POD
+-----------------------------------------------------------------------------
+
+| Agent                  | Job                                      | LLM_RT | LLM_BT | Runtime engine        |
+|------------------------|------------------------------------------|--------|--------|-----------------------|
+| Execution Agent        | Broker API, child orders, rate limits    | NONE   | YES    | CODE + broker SDK     |
+| TCA / Slippage Agent   | Shortfall, cost feedback                 | NONE   | YES    | CODE / stats          |
+
+
+-----------------------------------------------------------------------------
+3.6 OPS & GOVERNANCE POD
+-----------------------------------------------------------------------------
+
+| Agent                  | Job                                      | LLM_RT | LLM_BT | Runtime engine        |
+|------------------------|------------------------------------------|--------|--------|-----------------------|
+| Attribution Agent      | PnL explain, decay alerts                | OPTIONAL digest| YES | CODE + optional LLM summary |
+| Monitoring / Alert Agent | Heartbeats, flatten-on-disconnect     | NONE   | YES    | CODE                  |
+| Compliance / Audit Agent | Logs, IP, OPS, Algo tags               | NONE   | YES    | CODE                  |
+| Paper Gate Agent       | Congruence metrics, go/no-go pack        | OPTIONAL memo| YES  | CODE metrics + human  |
+
+
+================================================================================
+4. LLM USAGE MATRIX (QUICK LOOKUP)
+================================================================================
+
+NEED ONLINE LLM AT RUN-TIME?
+  News / Events Agent .............. YES (Phase later) — extract only
+  Desk Manager (thin router) ....... OPTIONAL — prefer rules first
+  Attribution / Paper Gate digests . OPTIONAL — narrative only
+  ALL OTHER AGENTS ................. NO
+
+NEED ONLINE LLM AT BUILD-TIME?
+  Almost every agent scaffolding ... YES — use Cursor Pro+
+  Especially Risk Kernel + Portfolio + Loss interface tests
+
+NEED OFFLINE / LOCAL LLM (Ollama etc.)?
+  Year-1 ................................. NO
+  Later privacy/air-gap extract .......... MAYBE
+  Portfolio / Risk / Loss / Execution .... NEVER
+
+NEED OFFLINE QUANT MODELS?
+  Alpha (Model Training) ............... YES — LightGBM primary
+  Loss Prediction ...................... YES — calibrated GBDT/classifier
+  Regime ............................... YES — rules first; GARCH/HMM later
+  Portfolio weights .................... NO model required (optimizer CODE)
+
+
+================================================================================
+5. EXACT MODELS & APIs TO USE (DETAILED RESEARCH VERDICT)
+================================================================================
+
+Your constraint: Cursor Pro+ only; no cloud LLM API key; no local LLM downloaded.
+Plan below is sequenced so you are not blocked.
+
+-----------------------------------------------------------------------------
+5.1 BUY / USE NOW (PHASE 0 — FOUNDATION)
+-----------------------------------------------------------------------------
+
+A) Cursor Pro+  [YOU ALREADY HAVE — PRIMARY ONLINE LLM]
+   Where to use : Cursor IDE Agent + optional Cloud Agents
+   Preferred models inside Cursor (cost-effective for coding):
+     1. Composer 2.5 / Auto Cost  — daily scaffold, refactors, tests (Cursor Models pool)
+     2. Claude Sonnet class OR GPT-5 class — harder design/review (Other Models ~$70 pool)
+   Do NOT burn Opus-class on every file edit.
+   Monitor: https://cursor.com/dashboard/usage
+
+B) Offline QUANT packages (FREE — NOT LLMs)
+   pip install:
+     numpy scipy pandas polars pyarrow scikit-learn lightgbm xgboost
+     statsmodels arch joblib matplotlib pytest duckdb
+   Primary alpha model     : LightGBM regressor/ranker
+   Baseline                : sklearn Ridge / ElasticNet
+   Loss model              : LightGBM or sklearn calibrated classifier
+                             target = P(hit daily ₹ stop) + ES features
+   Regime v0               : realized vol + trend slope RULES (no LLM, no DL)
+   Serialize               : joblib / native LightGBM + schema JSON + content hash
+
+C) Broker API (pick ONE — not an LLM)
+   Zerodha Kite Connect (~INR 500/mo paid) OR DhanHQ OR Fyers
+   Needed for paper/live market access — separate from Cursor
+
+D) What you do NOT buy/download now
+   ✗ OpenAI API key
+   ✗ Anthropic API key
+   ✗ Google AI Studio key (unless you prefer Gemini later)
+   ✗ Ollama / Llama / Mistral local weights
+   ✗ Any “AI stock predictor” GitHub weights
+   ✗ Finetune LLM on NSE ticks
+
+
+-----------------------------------------------------------------------------
+5.2 BUY LATER (PHASE 1–2 — WHEN NEWS FEATURES GO LIVE)
+-----------------------------------------------------------------------------
+
+ONE cloud LLM API for batch intelligence (outside Cursor), pick ONE:
+
+  OPTION 1 — Anthropic API (Claude Haiku / Sonnet)
+    Best for : long filings extract with disciplined source spans
+    Billing  : pay-as-you-go USD; hard monthly cap e.g. USD 50–100
+    Use from : Prefect job / Python SDK — NOT from Risk Kernel
+
+  OPTION 2 — OpenAI API (GPT-4.1-mini / GPT-5-mini class)
+    Best for : cheap structured JSON extract at volume
+    Billing  : pay-as-you-go; same hard cap
+
+  OPTION 3 — Stay Cursor-only longer
+    Keep extract jobs as HUMAN+Cursor assisted offline batches
+    Delay automated News Agent until capital justifies API key
+
+RECOMMENDATION: Stay Cursor-only until Paper Gate on Strategy A1 is green.
+Then add ONE provider key for News/Events batch — start with cheapest
+structured model (Haiku or GPT-mini), not Opus.
+
+
+-----------------------------------------------------------------------------
+5.3 NEVER FOR YEAR-1 LIVE PATH
+-----------------------------------------------------------------------------
+
+  ✗ Any LLM deciding position size
+  ✗ Any LLM overriding Risk Kernel
+  ✗ Continuous online fine-tune driving orders
+  ✗ Local LLM “because free” as Portfolio brain
+  ✗ Cursor Agent chat as kill-switch authority
+
+
+-----------------------------------------------------------------------------
+5.4 MODEL CHEAT-SHEET (WHAT RUNS WHERE)
+-----------------------------------------------------------------------------
+
+| Concern                    | Exact stack                         | Online/Offline | Cursor Pro+?        |
+|----------------------------|-------------------------------------|----------------|---------------------|
+| Write Risk Kernel code     | Cursor Agent (Composer/Claude)      | Online IDE     | YES — primary use   |
+| Alpha signal               | LightGBM (+ Ridge baseline)         | Offline QUANT  | No (Cursor writes trainer) |
+| Loss P(hit stop) / ES      | LightGBM / calibrated classifier    | Offline QUANT  | No                  |
+| Portfolio weights          | Python optimizer (cvxpy optional)   | Offline CODE   | No LLM at runtime   |
+| Regime                     | Rules → GARCH (arch) → HMM later    | Offline QUANT  | No                  |
+| News → feature             | Claude Haiku OR GPT-mini + parsers  | Online API later| Cursor OK for prototyping |
+| Manager routing            | Job queue / rules first             | CODE           | Optional thin LLM later |
+| Execution                  | Broker SDK                          | CODE           | No                  |
+| Risk veto / halt / flatten | Config + unit-tested Python         | CODE           | Cursor builds only  |
+
+
+================================================================================
+6. BUILD-TIME vs RUN-TIME (CURSOR PRO+ BOUNDARY)
+================================================================================
+
+BUILD-TIME (Cursor Pro+ heavily used)
+  Engineers + Cursor Agent write:
+    data adapters, feature store, trainers, Loss interface, Risk Kernel,
+    Portfolio optimizer, Manager contracts, paper gate metrics, tests.
+  Cursor IS the online LLM product you already pay for.
+
+RUN-TIME (desk loops)
+  QUANT inference (LightGBM) + CODE (Portfolio/Risk/Exec).
+  Online LLM only for News extract (later) and optional digests.
+  Cursor IDE is NOT inside the Risk Kernel.
+
+
+================================================================================
+7. PHASED AGENT ACTIVATION (SO YOU DO NOT OVERBUILD)
+================================================================================
+
+PHASE 0 (now — Cursor Pro+ only)
+  Implement as CODE stubs + real Risk Kernel + Loss interface stub:
+    Market Data, Portfolio, Risk Kernel, Execution (paper), Monitoring,
+    Compliance audit logs, Paper Gate metrics skeleton, Manager job router
+  Use Cursor to WRITE all of the above.
+  Skip live News LLM. Skip Manager LLM router.
+
+PHASE 1
+  Model Training + Backtest + Loss model v0 (QUANT offline)
+  Regime v0 rules
+  Strategy Research as human+Cursor hypothesis cards
+
+PHASE 2 PAPER
+  Full path: signal → Portfolio → Loss → Risk → paper Execution
+  Still no requirement for OpenAI/Anthropic key
+
+PHASE 3+ 
+  Add News/Events online LLM API key if features help OOS
+  Optional Manager digest LLM
+  Still no LLM in Portfolio / Risk / Loss / Execution
+
+
+================================================================================
+8. ANSWERS TO FREQUENT CONFUSIONS
+================================================================================
+
+Q: Do I need to download an offline LLM for training?
+A: NO. You train LightGBM/sklearn — not a language model — for alpha and loss.
+
+Q: Do I need OpenAI/Anthropic today?
+A: NO. Cursor Pro+ covers build. Add a provider key only for automated News later.
+
+Q: Can Cursor Pro+ replace a trading API brain?
+A: NO. It replaces expensive eng time. Trading brain = QUANT + CODE.
+
+Q: Portfolio Agent + LLM for “smart allocation”?
+A: NO. Smart = constrained optimizer + Loss + Risk. LLM only helps write that code.
+
+Q: Which single stack should I standardize on Day-1?
+A: Cursor Pro+ (Composer/Auto for code) + LightGBM + deterministic Risk Kernel
+   + one India broker API.
+
+
+================================================================================
+9. SUCCESS CRITERIA FOR THIS MODULE
+================================================================================
+
+- Every agent has an explicit LLM_RT / LLM_BT / QUANT / CODE label
+- Portfolio LLM_RT = NONE (enforced in design reviews)
+- Risk Kernel LLM_RT = NONE (enforced in CI)
+- Loss uses QUANT artifact hash in audit logs
+- Cursor Pro+ spend monitored; no shadow OpenAI bills until Phase decision
+- No local LLM weights in the repo or research machine “for alpha”
+
+
+================================================================================
+END OF AGENT_ARMY.txt
+================================================================================

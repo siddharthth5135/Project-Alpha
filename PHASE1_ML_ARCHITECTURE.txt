@@ -1,0 +1,529 @@
+================================================================================
+PROJECT ALPHA — PHASE 1 ML ARCHITECTURE (DECISIONS LOCKED)
+Your rough plan analyzed + reframed for NSE mid-freq desk
+Date: 2026-07-24 | Status: APPROVED DIRECTION for build
+================================================================================
+
+HOW TO READ THIS FILE
+---------------------
+You proposed a professional ML-first stack, then AI later. That sequencing is
+CORRECT for Project Alpha.
+
+This document:
+  1) Keeps what is strong in your plan
+  2) REJECTS or DEFERS what hurts Y1 (HFT theater, model zoo, LLM on path)
+  3) LOCKS decisions (one choice, not a menu)
+  4) Redefines Phase 1 / Phase 2 clearly
+  5) Defines pipelines + what “high accuracy” means for trading (not exam %)
+
+
+================================================================================
+0. VERDICT ON YOUR IDEA (SHORT)
+================================================================================
+
+KEEP (excellent)
+  - ML predicts; strategy/risk/portfolio/execution decide and act
+  - Feature engineering > fancy model chasing
+  - Classical ensembles (LightGBM/XGBoost) as core
+  - Walk-forward + leakage prevention
+  - Paper before live
+  - AI/LLM only later, never as the trading brain
+
+CHANGE (must fix for Alpha)
+  - Your pipeline order: Risk BEFORE Portfolio
+    Alpha order: Portfolio draft → Loss Prediction → Risk Kernel → Exec
+  - “Hundreds/thousands of features” Day-1 → start LEAN (overfit risk)
+  - Tick / L2 / SOR / Iceberg / TWAP Day-1 → DEFER (mid-freq, not HFT)
+  - Buy/Sell/Hold as primary target → prefer return / rank / P(adverse)
+  - Position sizing inside “Risk” mixed with hard stops → SPLIT cleanly
+  - Black-Litterman / HRP Day-1 → DEFER (simple constrained weights first)
+  - Deep Learning & RL listed as near-term → PHASE 2+ research only
+  - “High accuracy output responses” → redefine as cost-aware OOS edge,
+    not classification accuracy theater
+
+PHASE POLICY (LOCKED)
+  Phase 1 = Classical ML + deterministic software pipelines ONLY
+            (Cursor Pro+ may WRITE code; no LLM on live/research critical path
+             for signals, size, risk, or news-driven trades)
+  Phase 2 = Add AI/LLM capabilities as ENHANCERS (research assist, news
+            features, ops digests) — trading engine stays ML + code
+
+
+================================================================================
+1. REFRAMED CORE PIPELINE (LOCKED)
+================================================================================
+
+Your diagram was directionally right. Alpha production path is:
+
+```text
+Market Data (validate + store)
+        │
+        ▼
+Feature Store (point-in-time, versioned)
+        │
+        ▼
+ML Models (offline train → serialized infer)
+   ├── Alpha model(s)     → signal / expected return / rank score
+   └── Loss model         → P(hit stop) / adverse ES
+        │
+        ▼
+Strategy Engine (rules: when signal is actionable)
+        │
+        ▼
+Portfolio Construction (draft weights / lots)     [CODE]
+        │
+        ▼
+Loss Prediction Gate (skip / cut / flatten / hold) [ML SCORE + policy]
+        │
+        ▼
+Risk Kernel (hard veto / halt / force flatten)     [CODE — absolute]
+        │
+        ▼
+Execution Engine (paper | live flag)
+        │
+        ▼
+Broker API (ONE primary)
+        │
+        ▼
+TCA + Attribution + Monitoring → Trial Registry feedback
+```
+
+WHY THIS ORDER (decision)
+  Portfolio proposes size → Loss scores path risk on THAT size → Risk enforces
+  hard ceilings. Putting Risk before Portfolio hides soft path risk and mixes
+  “how big?” with “are we allowed?”. Alpha keeps them separate on purpose.
+
+
+================================================================================
+2. PHASE 1 vs PHASE 2 — WHAT EACH MEANS
+================================================================================
+
+PHASE 1 — “ML CONCEPTS ONLY” (BUILD THIS FIRST)
+  Goal: Pipelines that are correct, measurable, reproducible, and produce
+        HONEST out-of-sample trading quality (not chat answers).
+
+  IN SCOPE
+    - Market data ingest + Parquet warehouse + Redis live cache
+    - Feature engineering framework (PIT tests)
+    - Supervised ML: Ridge baseline + LightGBM primary (+ XGBoost challenger)
+    - Loss Prediction model (separate artifact)
+    - Strategy rules on top of model scores
+    - Portfolio draft sizing (simple constrained)
+    - Risk Kernel (deterministic)
+    - Cost-aware backtest + purged/walk-forward validation
+    - Paper trading same code path
+    - Monitoring, audit logs, trial registry
+
+  OUT OF SCOPE (Phase 1)
+    - LLM agents on trading/research critical path
+    - News/filings LLM extract as live features
+    - Deep Learning (LSTM/TFT/Transformers)
+    - Reinforcement Learning
+    - Multi-broker / smart order routing / L2 microstructure alpha
+    - Options market-making
+
+  BUILD TOOL (allowed)
+    - Cursor Pro+ to WRITE Phase 1 code/tests/docs
+    - This is engineering acceleration, NOT “Phase 2 AI in the product”
+
+
+PHASE 2 — “AI CAPABILITIES TO ENHANCE EACH SECTION”
+  Goal: Use AI to raise RESEARCH THROUGHPUT and FEATURE QUALITY — without
+        replacing ML prediction or Risk Kernel.
+
+  ADD (examples mapped to your sections)
+    Market Data     → anomaly narrative digests; schema drift explainers
+    Features        → LLM-assisted feature ideation (still human+backtest gate)
+    ML Layer        → AutoML search assist / report generation (not auto-promote)
+    Strategy        → hypothesis card drafting from literature
+    Risk/Portfolio  → NEVER LLM size/veto; AI only for policy memo drafting
+    Execution       → TCA narrative reports
+    Ops             → alert summarization, runbook suggestions
+    News            → verified extract → FEATURES into Phase 1 models
+
+  HARD RULE IN PHASE 2
+    AI enhances; ML + code still decide. Risk Kernel remains non-LLM.
+
+
+================================================================================
+3. COMPONENT DECISIONS (RESEARCH → LOCKED CHOICE)
+================================================================================
+
+-----------------------------------------------------------------------------
+3.1 MARKET DATA LAYER
+-----------------------------------------------------------------------------
+
+YOUR LIST INCLUDED: OHLCV, tick, L1/L2, F&O, corp actions, calendar, alt data
+
+| Item              | Decision     | Why |
+|-------------------|--------------|-----|
+| OHLCV bars        | REQUIRED P1  | Mid-freq core |
+| Index + stock F&O | REQUIRED P1  | Strategy A1 first |
+| Corporate actions | REQUIRED P1  | PIT correctness |
+| Economic calendar | OPTIONAL P1  | Simple binary flags OK; no LLM |
+| Tick data         | DEFER P2+    | Ops/storage heavy; not needed for bar mid-freq v0 |
+| Order book L2     | DEFER        | Microstructure / near-HFT; out of Y1 thesis |
+| Alt data          | DEFER P2     | After Sleeve A stable |
+
+STORAGE (LOCKED)
+  Historical warehouse : Parquet (partitioned) + DuckDB for research
+  Ops metadata         : Postgres (trials, audit, configs)
+  Live cache           : Redis (positions, heartbeats, kill flags)
+  REJECT Day-1         : “must buy Influx/Timescale first” — Parquet is enough
+
+DATA SOURCE (LOCKED FOR START)
+  Phase 1 start: ONE broker historical + live (Zerodha / Dhan / Fyers — pick one)
+  Upgrade to clean specialist feed ONLY if golden tests prove dirty F&O history
+
+
+-----------------------------------------------------------------------------
+3.2 FEATURE ENGINEERING LAYER
+-----------------------------------------------------------------------------
+
+YOUR IDEA: hundreds/thousands of features. Industry does this — AFTER process.
+
+DECISION: LEAN FEATURE SET v0 → expand only if OOS improves AFTER costs.
+
+Phase 1 starter dictionary (A1 Index F&O focus) — LOCKED v0:
+  Returns / lags          : r_1, r_5, r_20 (bar-scale appropriate)
+  Trend                   : EMA ratio (fast/slow), slope
+  Momentum                : RSI or ROC (pick one family, not all)
+  Volatility              : realized vol, ATR
+  Volume                  : volume z-score vs rolling mean
+  Session                 : time-of-day / day-of-week flags (IST)
+  Regime                  : vol regime bucket (low/med/high)
+  Distance                : VWAP distance OR EMA distance (one)
+
+REJECT Day-1 kitchen sink:
+  Every indicator on TradingView simultaneously (leakage + multiplicity)
+
+PROCESS (LOCKED)
+  1. Feature freeze before OOS evaluation
+  2. Point-in-time tests (no lookahead) in CI
+  3. Trial registry logs every feature set hash
+  4. Add features only via new trial — never silent mutate live schema
+
+
+-----------------------------------------------------------------------------
+3.3 MACHINE LEARNING LAYER
+-----------------------------------------------------------------------------
+
+PREDICTION TASKS — DECISIONS
+
+| Task                         | Phase 1? | Decision |
+|------------------------------|----------|----------|
+| Next-horizon net return      | YES      | PRIMARY label for alpha (after cost drag in eval) |
+| Cross-sectional rank score   | YES (A2) | When equity sleeve starts |
+| P(hit daily ₹ stop) / ES     | YES      | Loss model — SEPARATE artifact |
+| Buy/Sell/Hold multiclass     | NO as primary | Weak; use score + strategy rules instead |
+| Price target ₹               | NO       | Unstable; prefer return/rank |
+| Breakout probability alone   | OPTIONAL | Only if strategy rule set needs it |
+
+MODELS — DECISIONS
+
+| Model family              | Decision        | Role |
+|---------------------------|-----------------|------|
+| Ridge / ElasticNet        | REQUIRED        | Baseline / sanity |
+| LightGBM                  | REQUIRED PRIMARY| Nonlinear tabular alpha + loss |
+| XGBoost                   | OPTIONAL CHALLENGER | Compare; promote only if beats LGBM OOS |
+| CatBoost                  | DEFER           | Extra deps; not needed Day-1 |
+| Random Forest             | OPTIONAL baseline only | Usually loses to GBDT |
+| ARIMA/SARIMA              | OPTIONAL regime/vol assist | Not primary alpha |
+| GARCH (arch pkg)          | YES for vol/regime | Feeds features / filters |
+| HMM / Kalman              | DEFER late P1   | After rules regime works |
+| LSTM / GRU / TFT / Transformer / N-BEATS | PHASE 2+ research | Literature: GBDT wins tabular mid-freq |
+| RL (DQN/PPO)              | OUT Y1          | Research toy until P1 edge exists |
+
+TRAINING POLICY (LOCKED)
+  Offline batch only
+  Walk-forward + purged CV with embargo ≥ max feature lookback
+  Serialize: model + feature schema + metrics + content hash
+  Retrain schedule: weekly or monthly — never vibe-update into live
+  Promote only via trial registry + paper gate
+
+
+WHAT “HIGH ACCURACY” MEANS (LOCKED DEFINITION)
+  NOT: 80% Buy/Sell classification accuracy on random split
+  YES: Out-of-sample, cost-aware metrics that survive purge/embargo:
+        - Net Sharpe / Sortino / Calmar after brokerage+STT+slip+lots
+        - Max DD within policy
+        - Turnover & capacity sanity
+        - Loss-model calibration (reliability of P(hit stop))
+        - Paper shortfall vs backtest within agreed band
+  A model with “55% direction accuracy” can be excellent mid-freq IF
+  sizing/risk/costs work. Accuracy% alone is vanity.
+
+
+-----------------------------------------------------------------------------
+3.4 STRATEGY ENGINE
+-----------------------------------------------------------------------------
+
+KEEP your pattern: ML score → rules → decision.
+
+LOCKED EXAMPLE PATTERN (A1)
+  Inputs: alpha_score, regime_ok, volume_z, atr_expanding
+  Rule sketch:
+    IF regime_ok
+    AND alpha_score > threshold_T
+    AND liquidity_ok
+    THEN propose side = sign(alpha_score)
+    ELSE flat / no new risk
+
+ML does NOT place orders. Strategy emits INTENT only.
+
+
+-----------------------------------------------------------------------------
+3.5 RISK MANAGEMENT vs PORTFOLIO (SPLIT — IMPORTANT)
+-----------------------------------------------------------------------------
+
+Your doc mixed sizing, stops, VaR, sector limits under “Risk”.
+Alpha splits for clarity and veto power:
+
+PORTFOLIO CONSTRUCTION (CODE) — draft
+  - Convert scores → target weights / lots
+  - Gross/net budgets, single-name caps (soft proposals)
+  - Simple method P1: score → rank → capped equal-risk or fixed ₹ risk per trade
+  - DEFER: Black-Litterman, HRP, full Markowitz (add only if multi-asset book needs)
+
+LOSS PREDICTION (ML) — soft gate
+  - Score draft: skip / reduce / flatten / hold
+  - Prefer flat when path risk bad
+
+RISK KERNEL (CODE) — hard gate
+  - max daily loss, max DD halt, leverage/margin ₹, concentration
+  - kill switches (feed loss, broker disconnect)
+  - Absolute veto — no override
+  - Stop-loss / flatten POLICY lives here as code limits + runbooks
+    (per-trade stops may also be strategy rules — still enforced by kernel)
+
+VaR / CVaR
+  Phase 1: simple DD + daily loss + ES from loss model is enough
+  Formal VaR engine: DEFER until capital scale needs it
+
+
+-----------------------------------------------------------------------------
+3.6 EXECUTION LAYER
+-----------------------------------------------------------------------------
+
+| Algo              | Decision |
+|-------------------|----------|
+| Market / limit simple child orders | REQUIRED P1 |
+| Rate limiter      | REQUIRED P1 |
+| TWAP/VWAP slice   | OPTIONAL late P1 if size needs it |
+| Iceberg / SOR     | DEFER (not mid-freq Y1) |
+| Adaptive HFT exec | OUT |
+
+Paper and live MUST share same code path (flag only).
+
+
+-----------------------------------------------------------------------------
+3.7 MONITORING & INFRA
+-----------------------------------------------------------------------------
+
+REQUIRED P1
+  Structured logs, heartbeats, PnL/DD, broker connectivity, alerts
+  Audit trail for signals, sizes, loss advisories, risk vetoes
+  Docker for reproducible paper/live
+
+DEFER
+  Full Grafana suite until paper runs exist (stdout/structured logs first OK)
+
+
+================================================================================
+4. ESSENTIAL ML CONCEPTS — WHAT WE ACTUALLY USE IN PHASE 1
+================================================================================
+
+USE NOW
+  Supervised regression / ranking
+  Calibrated classification for Loss P(hit stop)
+  Lag + rolling features
+  Walk-forward validation
+  Purged CV + embargo
+  Leakage prevention tests
+  Simple regime labels (rules / vol buckets; optional GARCH)
+
+USE LATER (PHASE 2+)
+  LLM feature ideation / news extract
+  Unsupervised clustering for regimes IF it beats rules OOS
+  Deep sequence models IF tabular GBDT plateaus AND data shape justifies
+
+SKIP Y1
+  RL trading agents
+  Autoencoders as core alpha
+  End-to-end “AI decides trade”
+
+
+================================================================================
+5. HISTORICAL DATA → SUPERVISED TABLE (YOUR EXAMPLE — REFRAMED)
+================================================================================
+
+Your table idea is correct. Alpha production schema is stricter:
+
+  - Features computed only from info available at decision time t
+  - Target = forward outcome over horizon H (return and/or barrier/stop hit)
+  - Costs applied in BACKTEST METRICS (and optionally as label drag)
+  - Rows tagged with: strategy_id, feature_set_hash, label_def_id
+  - Train/infer use identical schema or fail closed
+
+Example columns (conceptual)
+  ts | symbol | f1..fk | y_fwd_ret_H | y_hit_daily_stop | regime | lot_ constr
+
+
+================================================================================
+6. PHASE 1 BUILD ROADMAP (ORDERED — DO NOT SKIP)
+================================================================================
+
+PRECISION PLAYBOOK (owners, micro-steps, exit gates, your role):
+  → See PHASE1_EXECUTION_PLAYBOOK.txt  (REQUIRED before any live capital)
+
+P1.0 Foundation                              [CODE COMPLETE 2026-07-25]
+  [x] Repo skeleton + configs                -> alpha-desk/
+  [x] Parquet layout (+ PIT tests deferred to P1.1 with the feature pipeline)
+  [x] India cost model (brokerage, STT, slip, lots)  -- rates UNVERIFIED
+  [x] Risk Kernel v0 + unit tests            -> 32 tests, 28 reason codes
+  [x] Loss Prediction INTERFACE stub         -> EV-relative, mandatory in path
+  [x] Trial registry schema                  -> append-only SQLite
+  [x] One broker adapter (paper flag)        -> paper done; Angel One inert
+  [x] EXTRA: hash-chained audit log, kill switch, rate limiter, data QA reports
+
+  NOTE ON THE LOSS GATE: the locked design used an absolute P(hit stop)
+  threshold. That is unworkable -- a genuine 1:4 setup is supposed to hit its
+  stop most of the time, so any fixed cutoff either blocks everything or means
+  nothing. Thresholds are now relative to each trade's cost-aware break-even
+  probability, and the kernel independently vetoes negative expected value.
+  See alpha-desk/docs/DECISIONS_LOCKED.md section 3.
+
+  NOTE ON PORTFOLIO LIMITS: gross-notional multiples do not work for F&O (one
+  NIFTY lot is ~Rs 18L notional on Rs 10L equity). Limits are expressed as
+  margin utilisation, matching the README's "prefer margin-risk Rs limits".
+  At Rs 10L the cap is 30%, which funds exactly one index futures lot. HoQR's
+  requested 10-20% cannot fund even one lot -- see DECISIONS_LOCKED.md s4.
+
+P1.1 Features + labels                       [CODE COMPLETE 2026-07-26]
+  [x] Feature framework + freeze mechanism   -> lean/v0, 14 features, committed
+                                                lock file, hash covers each
+                                                implementation not just names
+  [x] Label definitions for A1               -> y_fwd_ret_H (alpha) plus
+                                                y_hit_stop_long/short (loss),
+                                                triple barrier, versioned id
+  [x] Golden tests: no lookahead             -> truncation + shift-future attack,
+                                                each with a control experiment
+                                                that MUST fail
+  [x] EXTRA: continuous futures roll builder, supervised dataset builder,
+             scripts/verify_g1.py gate script
+
+  FEATURE SET CHANGE: atr_14 was split into atr_14 (points, for stop sizing)
+  and atr_14_pct (scale-free, for the model). A points-based ATR pooled across
+  NIFTY and BANKNIFTY teaches the model which instrument it is looking at
+  instead of what the volatility is.
+
+  EMBARGO CHANGE: validation.embargo_bars moved from 20 to 150. The volatility
+  regime bucket needs a 120-bar trailing window to be computed causally, on top
+  of a 20-bar vol estimate, giving a 141-bar feature warmup. An embargo shorter
+  than the warmup leaks train data into test. build_dataset.py refuses to run
+  if the spec violates this.
+
+  FINDING ON THE HORIZON: at H = 8 bars with a 1.5xATR stop, roughly half of
+  setups touch neither barrier and exit on time. That is recorded as a third
+  outcome rather than counted as a win, but it means realised R:R is driven by
+  time exits, not by the 1:2 barrier. The horizon/stop pairing needs a sweep in
+  P1.3 before any promote decision.
+
+P1.2 Models                                   [CODE COMPLETE 2026-07-26 — scaffolding]
+  [x] Ridge baseline                         -> artifacts/models/ridge_alpha/
+  [x] LightGBM alpha v0                      -> artifacts/models/lgbm_alpha/
+  [x] LightGBM/sklearn loss model v0         -> calibrated P(hit stop)
+  [x] Artifact bundle (model+schema+hash+metrics)
+  NOTE: trained on synthetic plumbing data; promote_eligible=false until
+  TrueData Market Data API (not Velocity) provides futures history.
+  Paper mode only; no live orders.
+
+P1.3 Validate                                [CODE COMPLETE 2026-07-26 — scaffolding]
+  [x] Walk-forward + purged CV harness       -> validation/walkforward.py
+  [x] Cost-aware metrics report              -> validation/report.py + artifacts/validation/
+  [x] Reject/promote logged in trial registry -> scripts/decide_trial.py
+  NOTE: random k-fold promote fails closed. Synthetic/Yahoo cannot
+  PROMOTE_TO_PAPER without --force-plumbing. Real G3 sign-off waits on TrueData API.
+
+P1.4 Strategy + Portfolio + Gates               [CODE COMPLETE 2026-07-26 — scaffolding]
+  [x] Strategy rules on scores                   -> strategy/rules.py
+  [x] Portfolio draft sizer                      -> portfolio/sizer.py (earlier)
+  [x] Wire Loss gate + Risk Kernel               -> pipeline/order_path.py + paper_engine.py
+  [x] Execution paper path                       -> scripts/run_paper_path.py
+  [x] Kill-switch drill script                   -> scripts/kill_switch_drill.py
+  NOTE: HoQR must approve alpha_score_threshold T and run the drill before
+  signing Gate G4 (“I will not bypass Loss/Risk”). Paper live-data loop is P1.5.
+
+P1.5 Paper Gate
+  [ ] Same code as live
+  [ ] Pre-agreed sample size
+  [ ] Written go/no-go
+
+ONLY THEN → limited live → Phase 2 AI enhancers
+
+GATES G0→G5 (you must sign each): PHASE1_EXECUTION_PLAYBOOK.txt
+
+
+================================================================================
+7. PHASE 2 AI ENHANCEMENT MAP (YOUR “LATER” — PREPLANNED)
+================================================================================
+
+When Phase 1 paper metrics are honest and stable, add AI per section:
+
+| Section              | Phase 2 AI enhancement                         | Still forbidden |
+|----------------------|-------------------------------------------------|-----------------|
+| Market Data          | Anomaly explanations, QA assistants             | Fabricate bars |
+| Feature Engineering  | Ideation + doc of candidates                    | Auto-add to live without trial |
+| ML Models            | Training reports, error analysis narratives     | Auto-promote; LLM predict ticks |
+| Strategy Engine      | Hypothesis drafting                             | Discretionary LLM orders |
+| Risk / Portfolio     | Policy memos, stress narratives                 | Size or veto |
+| Execution / TCA      | Shortfall narratives                            | Bypass rate limits |
+| Monitoring           | Alert digests to HoQR                           | Silent ignore kills |
+| News/Events          | Verified LLM extract → features                 | Trade on unverified text |
+
+Cursor Pro+ remains the primary build LLM throughout.
+
+
+================================================================================
+8. DECISION SUMMARY CARD (PRINT THIS)
+================================================================================
+
+Architecture style     : ML prediction + deterministic decision stack
+Phase 1 AI on path     : NO (Cursor builds only)
+Primary alpha model    : LightGBM (+ Ridge baseline)
+Primary loss model     : Calibrated GBDT/classifier (separate artifact)
+Deep Learning / RL     : Phase 2+ research only
+Features               : Lean frozen set → expand via trials
+Data                   : OHLCV + F&O + corp actions; no L2/tick Day-1
+Portfolio              : Simple constrained sizer (no BL/HRP Day-1)
+Risk                   : Hard kernel AFTER portfolio+loss
+Execution              : Simple + rate limit; no SOR/Iceberg Day-1
+First strategy         : A1 Index F&O regime + conditional MR/trend
+Success metric         : Cost-aware OOS risk-adjusted performance + calibration
+                         — NOT raw classification accuracy
+
+
+================================================================================
+9. WHAT WE CHANGED FROM YOUR ROUGH PLAN (TRANSPARENT)
+================================================================================
+
+KEPT
+  Layered architecture; ML ≠ whole platform; feature importance; ensembles;
+  validation discipline; paper first; AI later as enhancer
+
+REORDERED
+  Portfolio → Loss → Risk → Exec (Alpha veto design)
+
+NARROWED
+  Data types, feature count, model zoo, execution algos, portfolio math
+
+REDEFINED
+  “High accuracy responses” → honest trading quality under costs + gates
+
+ALIGNED
+  With AGENT_ARMY.txt (no LLM Portfolio/Risk) and STRATEGIES.txt (A1 first)
+
+
+================================================================================
+END OF PHASE1_ML_ARCHITECTURE.txt
+================================================================================

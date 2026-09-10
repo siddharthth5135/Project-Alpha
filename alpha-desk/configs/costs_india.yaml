@@ -1,0 +1,77 @@
+# ============================================================================
+# INDIA COST MODEL v0  --  broker: Angel One (NSE)
+# ----------------------------------------------------------------------------
+# WARNING: these rates are drafted from published schedules and MUST be
+# reconciled against a real Angel One contract note before any promote
+# decision. Until `verified_against_contract_note: true`, the backtest report
+# stamps every result as UNVERIFIED-COSTS.
+#
+# All percentages are on turnover unless the key says `_on_premium`.
+# ============================================================================
+
+broker: "ANGEL_ONE"
+exchange: "NSE"
+currency: "INR"
+rates_as_of: "2026-07-25"
+verified_against_contract_note: false
+
+brokerage:
+  # mode: min -> charge = min(flat, pct * turnover), per executed order
+  equity_delivery:
+    mode: "min"
+    flat_inr: 20.0
+    pct: 0.10
+    min_inr: 2.0
+  equity_intraday:
+    mode: "min"
+    flat_inr: 20.0
+    pct: 0.03
+    min_inr: 2.0
+  futures:
+    mode: "min"
+    flat_inr: 20.0
+    pct: 0.03
+    min_inr: 2.0
+  options:
+    mode: "flat"
+    flat_inr: 20.0
+
+stt:
+  equity_delivery: { buy_pct: 0.10, sell_pct: 0.10 }
+  equity_intraday: { buy_pct: 0.0, sell_pct: 0.025 }
+  futures:         { buy_pct: 0.0, sell_pct: 0.02 }
+  options:         { buy_pct: 0.0, sell_pct_on_premium: 0.10 }
+
+exchange_txn_pct:
+  equity_delivery: 0.00297
+  equity_intraday: 0.00297
+  futures: 0.00173
+  options_on_premium: 0.03503
+
+ipft_pct:
+  equity_delivery: 0.0001
+  equity_intraday: 0.0001
+  futures: 0.0001
+  options_on_premium: 0.0005
+
+sebi_turnover_pct: 0.0001    # Rs 10 per crore
+
+stamp_duty_buy_pct:
+  equity_delivery: 0.015
+  equity_intraday: 0.003
+  futures: 0.002
+  options: 0.003
+
+gst_pct: 18.0                # on brokerage + exchange txn + sebi + ipft
+
+dp_charges:
+  # Charged on delivery SELL only, per scrip per day.
+  equity_delivery_sell_inr: 20.0
+
+slippage:
+  # Deliberately pessimistic. Never tune these down to make a backtest pass.
+  model: "ticks_plus_bps"
+  index_futures: { ticks: 1, bps: 2.0 }
+  stock_futures: { ticks: 1, bps: 4.0 }
+  equity:        { ticks: 1, bps: 5.0 }
+  options:       { ticks: 1, bps: 15.0 }

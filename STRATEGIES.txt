@@ -1,0 +1,485 @@
+================================================================================
+PROJECT ALPHA — STRATEGIES.txt
+Strategic pillar: what we trade, how we model, how we train, what we buy
+Date: 2026-07-24 | Audience: HoQR + SW/AI eng team
+================================================================================
+
+WHY THIS FILE EXISTS
+--------------------
+README states the strategy pillar at a high level. This file makes it
+OPERATIONAL: pick order, offline vs online vs hybrid, packages to install,
+subscriptions/pricing, hardware roles (this PC + high-end PC), train/feed
+loop, and exactly what Cursor Pro+ / AI is allowed to do.
+
+
+================================================================================
+1. STRATEGIC PILLAR — PLAIN ENGLISH
+================================================================================
+
+“Strategic” here does NOT mean discretionary guessing.
+It means: a REPEATABLE research factory that turns hypotheses into
+versioned models that may only trade after gates.
+
+CORE LOOP (memorize this)
+  Hypothesis
+    -> Features (point-in-time, no lookahead)
+    -> Offline train (classical ML / stats)
+    -> Cost-aware walk-forward validation
+    -> Paper (same code as live)
+    -> Loss Prediction check + Risk Kernel
+    -> Tiny live
+    -> Scale only on capacity
+    -> Scheduled retrain / decay monitor / kill if dead
+
+WHAT “EDGE” MEANS
+  After brokerage + STT + slippage + lot constraints, the strategy still
+  shows honest out-of-sample risk-adjusted performance under our ceilings.
+  Pretty backtests without costs are worthless.
+
+
+================================================================================
+2. WHAT TO BUILD FIRST (ORDER — DO NOT SKIP)
+================================================================================
+
+PRIORITY 0 — FOUNDATION (before any “alpha”)
+  - India cost model (brokerage, STT, slippage, lot size)
+  - Parquet feature store + PIT correctness tests
+  - Risk Kernel v0 + Loss Prediction interface stub
+  - One broker paper path
+  - Trial registry
+
+PRIORITY 1 — FIRST LIVE CANDIDATE (pick ONE)
+  STRATEGY A1: Index F&O regime filter + mean-reversion / trend-conditional
+    Universe : Nifty & BankNifty futures (options later)
+    Horizon  : minutes to 1–2 days (mid-freq)
+    Why first: fewer names, cleaner ops, clear Rs risk, teaches F&O pipeline
+
+PRIORITY 2 — SECOND CANDIDATE (only after A1 paper path works)
+  STRATEGY A2: Cross-sectional short-horizon factors on liquid NSE equities
+    Hedge    : index F&O beta hedge
+    Horizon  : 1–5 days typical
+    Why next : needs universe + corp actions discipline
+
+PRIORITY 3 — OVERLAYS (never standalone Y1)
+  Event / calendar / earnings flags as FEATURES into A1/A2
+
+PRIORITY 4 — LATER
+  Defined-risk index options structures (no naked MM inventory)
+
+DO NOT START WITH
+  - 20 strategies at once
+  - LLM “predict next candle”
+  - Options market-making
+  - Illiquid smallcaps
+  - Online deep learning on ticks
+
+
+================================================================================
+3. OFFLINE MODELS vs ONLINE APIs vs HYBRID — DECISION
+================================================================================
+
+VERDICT FOR PROJECT ALPHA: HYBRID (with hard boundaries)
+
+  LAYER A — ALPHA + LOSS FORECASTS  = OFFLINE (local packages, free)
+  LAYER B — ENGINEERING + RESEARCH  = ONLINE (Cursor Pro+ / LLM APIs)
+  LAYER C — NEWS INTELLIGENCE       = ONLINE LLM + parsers + verification
+  LAYER D — RISK / SIZE / HALT      = DETERMINISTIC CODE (never LLM)
+
+WHY NOT “ONLINE API MODELS FOR TRADING SIGNALS”
+  - Cost burns every inference / every tick narrative
+  - Non-reproducible (model versions change behind API)
+  - Hard to audit for SEBI/broker / your own trial registry
+  - Weak for tabular mid-freq vs gradient boosting on good features
+  - Latency + outage risk on the critical path
+
+WHY NOT “ONLY OFFLINE EVERYTHING”
+  - Your team velocity collapses without Cursor/LLMs for code/tests/docs
+  - News/filings extraction is painful without LLMs (but must be verified)
+
+WHY HYBRID IS BEST + COST-EFFECTIVE
+  - Train LightGBM once offline (cheap CPU) -> serialize -> local infer
+  - Spend API money where ROI is highest: building correct software
+  - Accuracy for mid-freq tabular alpha is NOT improved by GPT on the order path
+
+
+================================================================================
+4. OFFLINE MODELS TO INSTALL / DOWNLOAD (FREE)
+================================================================================
+
+These are libraries you `pip install` — NOT paid “trading AI” products.
+There is no magic pretrained “NSE alpha model” you should blindly download
+and trust with capital.
+
+A. SIGNAL / ALPHA MODELS (install)
+  Package        Role                              License / cost
+  -------------  --------------------------------  ---------------
+  scikit-learn   Ridge, ElasticNet, logistic,      BSD / FREE
+                 calibration, pipelines
+  lightgbm       Primary nonlinear tabular alpha   MIT / FREE
+  xgboost        Alternate GBDT                    Apache-2 / FREE
+  statsmodels    ARIMA-ish, regression, diagnostics BSD / FREE
+  arch           GARCH / vol models                FREE
+  numpy/scipy    Math core                         FREE
+  pandas/polars  Feature tables                    FREE
+  joblib         Model serialize                   FREE
+  pyarrow        Parquet I/O                       FREE
+
+B. LOSS PREDICTION MODELS (same stack)
+  - Calibrated classifier / GBDT predicting:
+      P(hit daily loss stop | setup, regime, size)
+      Expected shortfall / adverse move over horizon
+  - Train offline on historical path outcomes AFTER costs
+  - Serialize separately from alpha model (own version + hash)
+
+C. REGIME / FILTERS
+  - Simple: realized vol, trend slope, ADX-like features, session flags
+  - Optional HMM / simple state filter (statsmodels / hmmlearn) — later
+
+D. WHAT NOT TO DOWNLOAD FOR Y1 ALPHA
+  - Random GitHub “AI stock predictor” weights
+  - Finetuned LLM trading checkpoints for live sizing
+  - Heavy deep learning tick models (need different hardware justification)
+
+INSTALL BASELINE (research machine)
+  python -m pip install --upgrade pip
+  pip install numpy scipy pandas polars pyarrow scikit-learn \
+              lightgbm xgboost statsmodels arch joblib matplotlib \
+              pytest duckdb
+
+Optional later: hmmlearn, optuna (hyperparam search — careful with overfitting)
+
+
+================================================================================
+5. ONLINE APIs / SUBSCRIPTIONS — WHAT TO BUY (WITH PRICING)
+================================================================================
+
+Prices change; verify on vendor sites before purchase. Figures below are
+planning bands as of mid-2026 research for this brief.
+
+-----------------------------------------------------------------------------
+5.1 BUILD / AI (YOU ALREADY HAVE CURSOR PRO+)
+-----------------------------------------------------------------------------
+
+Cursor Pro+ (individual)
+  Price (typical) : ~ USD 60 / month (annual often ~20% less)
+  Role in Alpha   : Codegen, agents, refactors, tests, docs, design review
+  Included        : Higher usage credits than Pro (heavy Agent work)
+  MUST USE FOR    : Building factory, risk tests, adapters, agent scaffolding
+  MUST NOT USE FOR: Live position sizing / risk veto / “should I buy now”
+
+Optional extra LLM API (only if Cursor credits run short for non-IDE jobs)
+  OpenAI / Anthropic API : pay-as-you-go (USD); budget a hard monthly cap
+  Role                   : batch news extract, offline eval scripts
+  Start                  : USD 0 until needed; cap e.g. USD 50–100 / mo
+
+Team note
+  If multiple engineers need Cursor, consider Cursor Teams (~USD 40/user/mo)
+  — separate from Pro+ individual. Decide with team size.
+
+-----------------------------------------------------------------------------
+5.2 BROKER API (PICK ONE PRIMARY)
+-----------------------------------------------------------------------------
+
+Zerodha Kite Connect
+  Paid Connect     : ~ INR 500 / month per API key
+  Includes         : live websocket market data + historical candles
+                    (with paid plan; Personal free plan has NO live/historical)
+  Strengths        : docs, community, maturity
+  Watch            : lower order rate limits — fine for mid-freq if rate-limited
+
+DhanHQ
+  API              : typically free (confirm current policy on dhan.co)
+  Strengths        : higher OPS, options baskets
+  Watch            : younger ecosystem; compliance path still required
+
+Fyers API v3
+  API              : typically free / low (confirm current policy)
+  Strengths        : competitive history/API options
+  Watch            : confirm algo compliance process with broker
+
+RECOMMENDATION
+  Day-1: pick ONE. Prefer the broker where YOUR account + F&O access + static
+  IP process is already smooth. Do not dual-broker until one adapter is solid.
+
+-----------------------------------------------------------------------------
+5.3 MARKET DATA (BEYOND BROKER — WHEN YOU NEED CLEANER HISTORY)
+-----------------------------------------------------------------------------
+
+Path 1 — Broker-only (cheapest start)
+  Zerodha paid API historical OR Fyers/Dhan history
+  Cost : ~ INR 0–500 / mo depending on broker
+  Good for : bootstrap research + paper
+  Risk : continuous F&O / quality gaps — validate with golden tests
+
+Path 2 — Specialist India data (when dirty history burns weeks)
+  TrueData Velocity (example list prices, per segment, monthly):
+    Lite NSE EQ or NSE F&O     ~ INR 1,440 / mo
+    Standard                   ~ INR 1,949 / mo
+    Optima                     ~ INR 2,288 / mo
+    Ultima                     ~ INR 2,796 / mo
+  Combo discounts often apply if multiple segments.
+  TrueData India VPS add-on examples ~ INR 4,250–4,750 / mo (optional)
+
+  Global Datafeeds : quote-based (realtime / historical / combo) — contact sales
+
+RECOMMENDATION (cost-effective, no accuracy compromise from “cheap data”)
+  Phase 0–1: broker historical + strict QA tests
+  If F&O continuous / options chain history is dirty: buy NSE EQ + NSE F&O
+  clean feed (TrueData Standard/Optima band or Global Datafeeds quote)
+  Budget planning: ~ INR 3,000–6,000 / mo for EQ+F&O clean data when needed
+  Do NOT cheap-out on data quality if it forces false alpha — that IS an
+  accuracy compromise (data quality > GPU vanity).
+
+-----------------------------------------------------------------------------
+5.4 HOSTING / COMPLIANCE OPS
+-----------------------------------------------------------------------------
+
+India VPS / cloud (AWS ap-south-1 Mumbai or India VPS) + static IP
+  Planning band : ~ INR 1,000–5,000+ / mo depending on size
+  Why           : broker IP whitelist / SEBI-oriented algo hosting preference
+  Paper can start on local machines; LIVE needs this plan locked.
+
+-----------------------------------------------------------------------------
+5.5 MONTHLY COST STACK — PLANNING EXAMPLE (STABLE TIER)
+-----------------------------------------------------------------------------
+
+  Cursor Pro+ (HoQR / lead)          ~ USD 60      (~ INR 5,000*)
+  Broker API (e.g. Kite paid)        ~ INR 500
+  Clean data EQ+F&O (if subscribed)  ~ INR 3,000–6,000
+  India VPS + static IP              ~ INR 1,500–5,000
+  Optional extra LLM API             ~ USD 0–100
+  ------------------------------------------------
+  Rough steady OpEx                  ~ INR 10,000–25,000+ / mo
+  * INR conversion floats with FX; treat as band.
+
+Trading capital is SEPARATE from this OpEx.
+
+
+================================================================================
+6. HARDWARE — THIS PC ANALYZED + HIGH-END PC ROLE
+================================================================================
+
+6.1 MEASURED MACHINE (this Cursor workspace host)
+-------------------------------------------------
+  Device     : HP Pavilion Laptop 15-eg2xxx
+  CPU        : 12th Gen Intel Core i7-1260P (12 cores / 16 threads, mobile P)
+  RAM        : 16 GB (2x8 GB @ 3200)
+  GPU        : Intel Iris Xe ONLY (no discrete NVIDIA/AMD)
+  Disk       : C: ~452 GB with only ~22.6 GB FREE  << CRITICAL
+               D: ~500 GB with ~355 GB FREE
+  OS         : Windows 11 Home 64-bit
+
+6.2 DOES THIS HARDWARE LIMIT MODEL ACCURACY?
+--------------------------------------------
+For Project Alpha’s CHOSEN Y1 stack (LightGBM / XGBoost / sklearn / GARCH):
+
+  NO — accuracy is NOT gated by discrete GPU.
+  Gradient boosting on tabular features trains and infers well on CPU.
+  Buying a GPU “so the AI is smarter” does NOT create alpha by itself.
+
+WHAT DOES HURT ACCURACY / RELIABILITY ON THIS LAPTOP
+  1) C: nearly full (~23 GB free) — builds, caches, Docker, datasets will fail
+     or thrash. THIS IS THE REAL RISK TODAY. Move project + data to D: or free
+     80+ GB on C: immediately.
+  2) 16 GB RAM — OK for single-index F&O research; TIGHT for large equity
+     universes + many walk-forward folds + Chrome + Cursor simultaneously.
+     Risk: swapping -> slow / killed jobs -> people “simplify” experiments
+     wrongly. That is how hardware pressure becomes research bias.
+  3) Mobile i7-1260P thermal/power limits — long Optuna sweeps will throttle.
+     Prefer high-end PC for heavy research grids.
+  4) Iris Xe — fine for charts; irrelevant for GBDT accuracy.
+
+6.3 YOUR HIGH-END PC (you said you have one)
+--------------------------------------------
+I could not inventory it from this session (not this machine).
+Treat it as the RESEARCH / TRAINING RIG. Ideal targets (do not compromise):
+
+  MUST
+    - 32 GB RAM minimum (64 GB better for big universes / options surfaces)
+    - Fast SSD with 500 GB+ free for Parquet history
+    - Modern CPU (desktop Ryzen 7/9 or Intel i7/i9 class, good sustained power)
+  NICE (not required for Y1 GBDT accuracy)
+    - NVIDIA GPU 8 GB+ VRAM — only if you later experiment with DL;
+      NOT required for LightGBM alpha/loss models
+  ROLE
+    - Nightly / weekend walk-forward, hyperparam grids, large feature builds
+    - Model artifact publish to shared store (then laptop/VPS only INFERS)
+
+6.4 RECOMMENDED ROLE SPLIT (NO ACCURACY COMPROMISE POLICY)
+----------------------------------------------------------
+  THIS LAPTOP (Pavilion)
+    - Cursor Pro+ coding, docs, agent scaffolding
+    - Light unit tests, small smoke backtests
+    - Manager orchestration experiments
+    - NOT the primary heavy training box
+    - Store data on D:, not C:
+
+  HIGH-END PC
+    - Primary offline training + walk-forward farm
+    - Large Parquet feature store
+    - Loss-model calibration sweeps
+    - Export versioned model bundles (hash + metrics)
+
+  INDIA VPS (for live later)
+    - Paper/live runtime, static IP, broker session
+    - Infer only with promoted artifacts (no casual retrain on VPS)
+
+POLICY: If a research job does not fit comfortably in RAM without swap, MOVE
+IT to the high-end PC. Never shrink the universe or skip walk-forward folds
+just to “make it run on the laptop.” That is the compromise you hate — ban it.
+
+
+================================================================================
+7. HOW WE TRAIN / FEED STRATEGIES (STEP BY STEP)
+================================================================================
+
+STEP 1 — HYPOTHESIS CARD (human or Strategy Research Agent draft)
+  Fields: thesis, universe, horizon, features sketch, risk notes, reject criteria
+  Manager accepts into trial registry (status=INTAKE)
+
+STEP 2 — DATA
+  Pull OHLCV (+ OI for F&O) point-in-time
+  Apply corp actions / continuous futures rules
+  Write Parquet partitions; golden-file tests
+
+STEP 3 — FEATURES
+  Build matrix X_t using only info available at t
+  Freeze feature schema before OOS evaluation
+
+STEP 4 — LABELS
+  Example: forward net return over H bars AFTER cost model
+  Loss labels: did path hit stop / ES over horizon
+
+STEP 5 — OFFLINE TRAIN (high-end PC)
+  Walk-forward / purged CV
+  Models: Ridge baseline -> LightGBM primary
+  Log all trials (params, metrics, reject/promote)
+
+STEP 6 — SERIALIZE ARTIFACT
+  Bundle: model file + feature schema + train window + metrics + content hash
+  Store immutable; only promoted hashes may go paper/live
+
+STEP 7 — PAPER
+  Same code path; Loss + Risk on
+  Measure shortfall, misses, loss-block outcomes
+
+STEP 8 — LIVE INFER
+  Load promoted artifact
+  Score on live features
+  Portfolio draft -> Loss Prediction -> Risk Kernel -> Manager -> Execution
+
+STEP 9 — SCHEDULED RETRAIN
+  Weekly or monthly batch on high-end PC
+  New artifact must re-pass gates (no silent replace)
+
+
+================================================================================
+8. CAN AI / CURSOR PRO+ DO THE TRAINING TOO?
+================================================================================
+
+SHORT ANSWER
+  YES for building and running the TRAINING SYSTEM.
+  NO for being the live trading brain.
+
+WHAT CURSOR PRO+ SHOULD DO (HIGH VALUE — USE THESE)
+  1) Scaffold research repo: feature store, backtest harness, cost model
+  2) Write LightGBM / sklearn training scripts + walk-forward harness
+  3) Generate pytest suites for lookahead bugs + risk unit tests
+  4) Implement broker adapters + rate limiter + audit logs
+  5) Implement Desk Manager + specialist agent role stubs (LangGraph/jobs)
+  6) Draft STRATEGY_SPEC_001 from this file (you approve params)
+  7) Cloud Agents / background agents: long refactors, test runs, doc sync
+  8) Bugbot / code review on PRs for risk/exec paths
+  9) Skills/hooks: enforce “no LLM in risk kernel” checks in CI if useful
+  10) MCP tools later: connect internal trial registry / logs for review
+
+WHAT AI MUST NOT DO
+  - Decide live order size from a chat prompt
+  - Override Risk Kernel
+  - Promote a model to live without HoQR + paper gates
+  - “Vibe retrain” into production mid-session
+
+CAN AI RUN THE ACTUAL `lightgbm.train(...)` JOB?
+  Yes — Cursor Agent can write and execute training scripts on your machines
+  (prefer high-end PC). Humans still own:
+    - hypothesis acceptance
+    - cost assumptions
+    - promote/kill
+    - capital
+
+PRACTICAL TEAM WORKFLOW WITH CURSOR PRO+
+  HoQR          : “Implement A1 regime+MR strategy per STRATEGIES.txt”
+  Cursor Agent  : builds modules + tests on branch
+  SW eng        : reviews data/exec correctness
+  AI eng        : wires Manager contracts + eval harness
+  High-end PC   : runs overnight walk-forward
+  HoQR          : reads trial registry; promote to paper or reject
+
+
+================================================================================
+9. FIRST STRATEGY SPEC SKETCH — A1 (INDEX F&O)
+================================================================================
+
+Name           : A1_Index_Regime_MR
+Universe       : Nifty futures, BankNifty futures (near month; roll rules TBD)
+Bar size       : 5-minute or 15-minute (lock in research; don’t flip casually)
+Signal family  : Regime filter (vol/trend) + mean-reversion ONLY in allowed regime
+                (optional trend sleeve later — separate trial id)
+Features (v0)  : returns, realized vol, z-score of price vs MA, session time,
+                distance to VWAP/prev close, OI change (if clean)
+Model v0       : (1) rule-based regime + z-score baseline
+                 (2) LightGBM rank/classifier on same features
+Label          : net forward return over H bars after costs
+Loss model     : P(hit daily Rs stop) + ES over H given size
+Risk           : max daily loss Rs, max lots, flatten before expiry window
+Promotion      : walk-forward net Sharpe/Sortino after costs + DD within policy
+                + paper congruence + zero risk breaches
+
+THIS IS A SKETCH. Next artifact should be STRATEGY_SPEC_001.md with locked
+params (H, z thresholds, lot caps, roll calendar).
+
+
+================================================================================
+10. ACCURACY POLICY (YOUR “NO HARDWARE COMPROMISE” RULE)
+================================================================================
+
+We will NEVER:
+  - Drop walk-forward folds to fit laptop RAM
+  - Shrink universe to hide compute limits
+  - Skip cost model to make Sharpe look good
+  - Use a weaker model “because GPU missing” when GBDT is the right tool
+  - Let C: disk pressure corrupt datasets mid-run
+
+We WILL:
+  - Run heavy jobs on high-end PC
+  - Buy clean data when dirty history creates false alpha
+  - Keep LightGBM/sklearn as primary (CPU-honest, reproducible)
+  - Use Cursor Pro+ to increase engineering correctness throughput
+
+
+================================================================================
+11. IMMEDIATE ACTION LIST (STRATEGIC)
+================================================================================
+
+[ ] Free C: space OR move Project Alpha + datasets to D:
+[ ] Inventory high-end PC (CPU/RAM/GPU/disk) and write HARDWARE_ROLES.txt
+[ ] Pick primary broker + enable API / static IP plan
+[ ] Install offline stack on high-end PC (section 4)
+[ ] Lock STRATEGY_SPEC_001 for A1 (params)
+[ ] Build cost model + empty trial registry
+[ ] Use Cursor Pro+ to scaffold repo + risk/loss tests first
+[ ] Decide broker-only data vs TrueData/Global Datafeeds purchase trigger
+
+
+================================================================================
+12. DISCLAIMER
+================================================================================
+
+Not financial, investment, legal, or tax advice. Pricing bands change — verify
+before purchase. Models can lose money. Offline training does not guarantee
+edge. You and the team own capital and compliance decisions.
+
+
+================================================================================
+END OF STRATEGIES.txt
+================================================================================

@@ -1,0 +1,97 @@
+# ============================================================================
+# RISK_CONFIG v1  --  Project Alpha
+# Owner: Head of Quant Research (HoQR). Agent may draft, HoQR signs.
+# Revised 2026-07-26 after Independent IC / CRO review.
+# ----------------------------------------------------------------------------
+# Capital: Rs 10,00,000 planning. First live ceiling remains Rs 50,000.
+#
+# IC resolutions embedded here:
+#   - Rupee stop-risk is primary; margin is capacity only
+#   - Operating margin cap 20%; stress 30% is NOT for new risk
+#   - Risk/trade operates at 1% (Rs 10,000) until paper proves edge
+#   - Daily loss operating 3% (Rs 30,000); hard ceiling 5%
+#   - Single directional India-index beta book (max 1 open position)
+#   - No overnight holds in Phase 1
+# ============================================================================
+
+version: "v1"
+signed_by: "Siddharth Jitendra Patel"          # HoQR writes name + date here at Gate G0
+signed_on: "2026-07-26"
+
+capital:
+  account_equity_inr: 1000000
+  first_live_capital_ceiling_inr: 50000
+
+daily_loss:
+  # IC: 5% is too aggressive for an unproven book. Operate at 3% (Rs 30,000).
+  # Hard ceiling remains 5% so a temporary HoQR raise cannot exceed it in YAML.
+  max_daily_loss_pct: 3.0
+  hard_ceiling_pct: 5.0
+  basis: "start_of_day_equity"
+
+drawdown:
+  max_drawdown_halt_pct: 12.0
+  basis: "peak_equity"
+  resume_requires_written_signoff: true
+
+per_trade:
+  # Primary risk control: rupees lost if the stop fills.
+  # IC: use the bottom of the 10-20k band until expectancy is proven after costs.
+  max_risk_per_trade_pct: 1.0
+  hard_ceiling_pct: 3.0
+  max_rupee_risk_per_trade: 10000
+  max_lots_per_order: 1          # one lot is already ~full book at Rs 10L
+  max_lots_per_instrument: 1
+  require_stop_loss: true
+
+portfolio:
+  # Margin is CAPACITY, not risk. Live calm-market NRML for one lot is ~17-19%
+  # of Rs 10L equity, so 20% funds exactly one lot under current SPAN-ish levels.
+  # Stress 30% exists only so an already-approved position is not force-rejected
+  # by the kernel when SPAN spikes; NEW risk may never use the stress band.
+  max_concurrent_positions: 1
+  max_margin_utilisation_pct: 20.0          # operating / new risk
+  stress_margin_utilisation_pct: 30.0       # existing / reduce-only only
+  max_single_instrument_margin_pct: 20.0
+  max_correlated_cluster_positions: 1       # NIFTY + BANKNIFTY = one beta book
+
+quality_gate:
+  min_rr_after_costs: 2.0
+  premium_rr_tag: 6.0
+  min_alpha_score_abs: 0.0
+  max_new_signals_per_day: 4
+  max_trades_per_day: 4
+
+loss_gate:
+  mandatory: true
+  ev_safety_margin: 0.10
+  cut_band: 0.10
+  cut_fraction: 0.5
+  absolute_block_p_hit_stop: 0.85
+
+session:
+  timezone: "Asia/Kolkata"
+  market_open: "09:15"
+  market_close: "15:30"
+  no_new_risk_after: "14:45"     # earlier cutoff: Phase 1 is flat-by-close
+  force_flatten_at: "15:15"
+  allow_overnight: false         # IC: no overnight until an explicit gap model exists
+
+ops:
+  flatten_on_data_feed_loss: true
+  max_heartbeat_age_seconds: 90
+  flatten_on_broker_disconnect: true
+  max_order_age_seconds: 60
+
+invariants:
+  no_return_target_scaling: true
+  risk_kernel_veto_is_absolute: true
+  paper_and_live_share_code_path: true
+  llm_in_trading_path: false
+
+paper_gate:
+  min_sessions: 60
+  min_closed_trades: 100
+  max_uncaught_risk_breaches: 0
+  max_implementation_shortfall_pct: 30.0
+  min_audit_completeness_pct: 100.0

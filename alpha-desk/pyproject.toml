@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alpha-desk"
+version = "0.1.0"
+description = "Project Alpha - Phase 1 ML trading desk (NSE, mid-frequency, paper-first)"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+    "network: test requires internet access (deselect with -m 'not network')",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

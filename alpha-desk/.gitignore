@@ -1,0 +1,41 @@
+# --- secrets: never commit ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials*.json
+
+# --- data & artifacts (live on D:, not in git) ---
+data/
+artifacts/
+logs/
+audit/
+*.parquet
+*.duckdb
+*.sqlite
+*.sqlite3
+*.db
+_tmp_*/
+
+# --- vendor NDA / local API extracts ---
+TD_API_Documents.zip
+_td_docs_extract/
+
+# --- python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# --- os / editor ---
+Thumbs.db
+.DS_Store
+.idea/

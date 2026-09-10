@@ -1,0 +1,87 @@
+# NSE session clock and trading holidays.
+#
+# Used for gap detection: any expected bar timestamp absent from a vendor
+# response is a gap unless this file (or a calendar learned from stored index
+# EOD data) says the exchange was shut.
+#
+# Fixed-date and Good Friday holidays are listed here. Lunar/announced
+# holidays MUST be reconciled against the annual NSE circular before a
+# backfill is promoted; an incomplete list shows up as false-positive gaps in
+# the quality report, which is the failure mode we want (visible, not silent).
+# `scripts/calendar_learn.py` writes the exchange-observed set from ingested
+# index EOD bars and takes precedence when present.
+
+timezone: Asia/Kolkata
+
+sessions:
+  EQ:   { open: "09:15", close: "15:30", pre_open: "09:00", pre_open_close: "09:08" }
+  INDEX: { open: "09:15", close: "15:30" }
+  FUT:  { open: "09:15", close: "15:30" }
+  OPT:  { open: "09:15", close: "15:30" }
+  CDS:  { open: "09:00", close: "17:00" }
+  COM:  { open: "09:00", close: "23:30" }
+
+# Bars are stamped at interval start, so the final 1m bar of an NSE equity
+# session is 15:29 and a full day holds 375 one-minute bars.
+bar_convention: interval_start
+
+holidays:
+  # NSE equity + equity derivatives weekday holidays for 2026 (exchange circular).
+  # Weekend-only holidays omitted (already non-trading). Muhurat: see special_sessions.
+  verified_through: "2026-12-31"
+  dates:
+    2024:
+      - 2024-01-26
+      - 2024-03-08
+      - 2024-03-25
+      - 2024-03-29
+      - 2024-04-11
+      - 2024-04-17
+      - 2024-05-01
+      - 2024-06-17
+      - 2024-07-17
+      - 2024-08-15
+      - 2024-10-02
+      - 2024-11-01
+      - 2024-11-15
+      - 2024-12-25
+    2025:
+      - 2025-02-26
+      - 2025-03-14
+      - 2025-03-31
+      - 2025-04-10
+      - 2025-04-14
+      - 2025-04-18
+      - 2025-05-01
+      - 2025-08-15
+      - 2025-08-27
+      - 2025-10-02
+      - 2025-10-21
+      - 2025-10-22
+      - 2025-11-05
+      - 2025-12-25
+    2026:
+      - 2026-01-15  # Municipal Corporation Election (Maharashtra) — equity closed
+      - 2026-01-26  # Republic Day
+      - 2026-03-03  # Holi
+      - 2026-03-26  # Shri Ram Navami
+      - 2026-03-31  # Shri Mahavir Jayanti
+      - 2026-04-03  # Good Friday
+      - 2026-04-14  # Dr. Baba Saheb Ambedkar Jayanti
+      - 2026-05-01  # Maharashtra Day
+      - 2026-05-28  # Bakri Id
+      - 2026-06-26  # Muharram
+      - 2026-09-14  # Ganesh Chaturthi
+      - 2026-10-02  # Mahatma Gandhi Jayanti
+      - 2026-10-20  # Dussehra
+      - 2026-11-10  # Diwali-Balipratipada
+      - 2026-11-24  # Prakash Gurpurb Sri Guru Nanak Dev
+      - 2026-12-25  # Christmas
+
+# Muhurat and other one-off part sessions: full-day gap checks are skipped and
+# only the declared window is expected.
+special_sessions:
+  2024-11-01: { open: "18:00", close: "19:00" }
+  2025-10-21: { open: "13:45", close: "14:45" }
+  # Diwali Laxmi Pujan Muhurat (timings TBD by exchange; placeholder evening window)
+  2026-11-08: { open: "18:00", close: "19:15" }

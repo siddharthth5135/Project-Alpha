@@ -1,0 +1,580 @@
+================================================================================
+PROJECT ALPHA — PHASE 1 EXECUTION PLAYBOOK
+Precision steps + zero-mistake gates + YOUR ROLE vs AGENT ROLE
+Date: 2026-07-24 | Audience: HoQR (you) + Cursor Agent
+================================================================================
+
+STATUS UPDATE — 2026-07-26 (IC remediation applied)
+---------------------------------------------------
+Independent IC/CRO review overturned stale lot/margin assumptions and tightened
+risk. Code-enforceable IC conditions PASS (scripts/verify_ic_conditions.py).
+
+  Lots: NIFTY 65, BANKNIFTY 30, FINNIFTY 60
+  Margin policy: 20% operating / 30% stress-only (new risk cannot use stress)
+  Risk/trade: 1% / Rs 10,000; daily loss: 3% / Rs 30,000 (ceiling 5%)
+  Portfolio: max 1 position, max 1 correlated cluster (single beta book)
+  Overnight: forbidden until gap model approved
+  Promote-grade datasets: yahoo/synthetic refused
+
+Live Rs 10L = NO-GO. Phase 1.2 ML = GO WITH CONDITIONS pending HoQR:
+  signature, contract note, futures data vendor (docs/DATA_VENDORS.md).
+
+P1.0 FOUNDATION AND P1.1 DATA/FEATURES ARE CODE-COMPLETE.
+
+  P1.1.1 historical landing    DONE  -> Parquet warehouse, source-partitioned
+  P1.1.2 continuous futures    DONE  -> roll rules + return invariance proof
+  P1.1.3 feature pipeline v0   DONE  -> lean/v0, 14 features, frozen with a hash
+  P1.1.4 label pipeline v0     DONE  -> fwd return + triple barrier, versioned
+  ALSO   supervised dataset builder + scripts/verify_g1.py
+
+GATE G1 PASSES on synthetic and Yahoo data, with a recorded caveat: Yahoo yields
+~826 labelled rows per symbol, which is plumbing evidence, not model evidence.
+G1 is only genuinely met on a vendor feed with real F&O bars and volume.
+
+Roll rule chosen without waiting on HoQR (step P1.1.2 asked for a preference):
+days-to-expiry with a 2-session buffer, because it is deterministic from the
+contract calendar. A volume-based rule is implemented and selectable. Overrule
+by changing RollRule, not the call sites.
+
+Steps P1.0.1 through P1.0.7 are DONE and tested. P1.0.8 (broker adapter) is
+stubbed and deliberately inert until credentials + Gate G5.
+
+  P1.0.1 lock decisions        DONE  -> alpha-desk/docs/DECISIONS_LOCKED.md
+  P1.0.2 repo + python + disk  DONE  -> D:\Project Alpha\alpha-desk (355GB free)
+  P1.0.3 secrets pattern       DONE  -> .env.example + .gitignore + fail-closed loader
+  P1.0.4 India cost model      DONE  -> rates UNVERIFIED; promote blocked in code
+  P1.0.5 Risk Kernel v0        DONE  -> 28 reason codes, 32 tests, file kill switch
+  P1.0.6 Loss interface stub   DONE  -> EV-relative gate, mandatory in the order path
+  P1.0.7 Trial registry        DONE  -> append-only SQLite, rejects cannot be deleted
+  P1.0.8 Broker adapter        WAITING ON HoQR credentials
+  ALSO   Parquet warehouse, Yahoo + synthetic providers, hash-chained audit log
+
+GATE G0 IS NOT YET SIGNED. Two items are HoQR's, not the agent's:
+  1. Sign configs/risk_config.yaml (signed_by / signed_on)
+  2. Reconcile the Angel One fee schedule against a real contract note, then set
+     verified_against_contract_note: true
+
+HoQR answered the ten questions with intent rather than numbers ("dynamically
+suitable timeframe", "standard drawdown", "2-3%"). Those were closed with
+specific, overridable config values. Read DECISIONS_LOCKED.md before signing:
+the 1:6 R:R ambition became a 1:2 floor with 1:6 tagged premium.
+
+HoQR's second pass gave rupees against Rs 10,00,000 capital:
+  Daily loss   Rs 50,000     -> 5.0%, set as BOTH the operating halt and ceiling
+  Risk/trade   Rs 10-20,000  -> 2.0% with a Rs 20,000 absolute cap
+  Position     10-20%        -> OVERRULED to 30% margin utilisation
+
+The position-sizing instruction is arithmetically unreachable and had to be
+overruled rather than silently applied. One NIFTY lot needs 27% of Rs 10L in
+margin and one BANKNIFTY lot needs 28%; a 20% cap therefore rejects every index
+futures trade and the desk would never trade at all. 30% is the smallest value
+that funds exactly one lot while still refusing a second position, and
+test_config.py asserts both halves so a lot-size change fails loudly. Genuine
+10-20% sizing needs defined-risk options, more capital, or MIS margin - and MIS
+is leverage, which cuts the wrong way. HoQR should confirm or redirect.
+
+
+WHY THIS FILE EXISTS
+--------------------
+PHASE1_ML_ARCHITECTURE.txt locks WHAT to build.
+This playbook locks HOW — every small step, exit gate, and who does what.
+
+Non-negotiable stance:
+  Live capital mistakes are unacceptable.
+  Therefore NOTHING reaches live without written gates.
+  “Looks good in a chart” is NOT a gate.
+
+
+================================================================================
+0. HONEST BOUNDARY — WHAT I (CURSOR AGENT) CAN AND CANNOT DO
+================================================================================
+
+I CAN (with your approval, on YOUR machines)
+  - Design and write the full Phase 1 codebase
+  - Write unit/integration/golden tests (risk, PIT, cost model)
+  - Write training / walk-forward scripts
+  - RUN training & backtests on your PC when you ask (uses YOUR CPU/RAM/disk)
+  - Debug failures, fix leaks, improve pipelines
+  - Produce model artifacts + metric reports for YOUR review
+  - Scaffold paper trading path (same code as live, paper flag)
+
+I CANNOT / WILL NOT
+  - Create your broker account or pass KYC for you
+  - Hold or invent your API secrets in chat as long-term storage
+  - Place LIVE orders with your money without YOUR explicit go-live approval
+  - Guarantee profits or “high accuracy = money”
+  - Override Risk Kernel or skip paper gates “to move faster”
+  - Promote a model to live (that is YOUR HoQR decision)
+  - Magically train without YOUR data access (broker/history credentials)
+
+ACCURACY TRUTH
+  Pipelines can be made CORRECT (no leakage, costs, risk veto, audit).
+  Markets do not guarantee profitable “accuracy.”
+  Our job: maximize honest process quality so live mistakes from SOFTWARE
+  are near-zero. Edge after costs is discovered, not wished.
+
+
+================================================================================
+1. YOUR ROLE (HOQR) — WHAT YOU OWN
+================================================================================
+
+You are Head of Quant Research for Project Alpha.
+
+YOU OWN
+  1. Capital — how much is research/paper vs limited live (never all net worth)
+  2. Policy — daily loss %, max DD halt, single-name caps (numbers in config)
+  3. Broker relationship — account, F&O enablement, API subscription, static IP
+  4. Secrets — API key/secret stored in env/vault — NEVER commit to git
+  5. Promote / Kill — written yes/no after paper sample
+  6. Hardware hygiene — free disk (esp. C:), high-end PC for heavy train
+  7. Compliance — SEBI/broker algo rules for YOUR account type
+  8. Final accountability — wins and losses are yours
+
+YOU MUST DELIVER (CHECKLIST — BLOCKERS FOR BUILD)
+
+A. DECISIONS (write answers; without these we stall)
+  [ ] Primary broker: Zerodha / Dhan / Fyers (pick ONE)
+  [ ] Starting strategy confirm: A1 Index F&O (Nifty/BankNifty) — YES/NO
+  [ ] Bar timeframe for A1 v0: e.g. 5-min / 15-min / daily (pick ONE)
+  [ ] Prediction horizon H: e.g. next 3 bars / next session (pick ONE)
+  [ ] Paper duration gate: e.g. min N sessions OR min M trades (pick numbers)
+  [ ] Risk numbers for YOUR capital tier (daily loss %, DD halt %)
+  [ ] Max ₹ risk per trade / max lots (F&O)
+  [ ] Live capital ceiling for first live (₹) — tiny after paper only
+
+B. ACCOUNTS & ACCESS
+  [ ] Broker account with F&O (if A1) enabled
+  [ ] Broker API access enabled (paid Connect if Zerodha)
+  [ ] API key + secret + (if any) redirect URL — you create; put in .env locally
+  [ ] Confirm paper/sandbox OR “paper = our simulator + live market data” mode
+  [ ] (Later live) India VPS + static IP plan owner named
+
+C. ENVIRONMENT
+  [ ] Project + Parquet data on D: (or disk with 100GB+ free) — NOT full C:
+  [ ] Python 3.11+ installed on research machine
+  [ ] High-end PC available for heavy walk-forward (recommended)
+  [ ] Cursor Pro+ active (you have this)
+
+D. APPROVALS (GATES YOU SIGN)
+  [ ] Sign-off after each Phase gate below (P1.0 → P1.5)
+  [ ] Explicit written “GO LIVE LIMITED” before any real order
+  [ ] Kill criteria understood: halt if DD/daily loss hit; no catch-up leverage
+
+WHAT YOU DO NOT NEED TO DELIVER DAY-1
+  - OpenAI / Anthropic API keys (Phase 1 ML-only)
+  - Local LLM downloads
+  - GPU for LightGBM
+  - Multiple brokers
+
+
+================================================================================
+2. MY ROLE (CURSOR AGENT) — WHAT I DELIVER
+================================================================================
+
+WITH YOUR ANSWERS ABOVE, I DELIVER
+  - Repo skeleton matching Alpha architecture
+  - Cost model, Risk Kernel, Loss interface, Portfolio sizer
+  - Feature/label pipelines with PIT tests
+  - Train scripts (Ridge + LightGBM alpha + loss model)
+  - Walk-forward / purged CV harness
+  - Trial registry + artifact versioning
+  - Paper execution path + audit logs
+  - Runbooks: flatten, halt, reconnect
+  - Training runs ON YOUR MACHINE when you say “run training”
+  - Clear reports: metrics, rejects, promote recommendation (you decide)
+
+TRAINING CLARIFICATION
+  Yes — I can train models by writing + executing scripts on your PC/high-end PC.
+  No — I do not have a separate “cloud brain” that trains without your machine
+       and data. Training uses YOUR data, YOUR disk, YOUR CPU.
+  After train: you review metrics; I do not silently promote.
+
+
+================================================================================
+3. ZERO-MISTAKE PRODUCTION LAW (READ BEFORE ANY CODE)
+================================================================================
+
+LAW 1 — Same code path paper and live (flag only). No second “demo brain.”
+LAW 2 — No live capital until Paper Gate written PASS.
+LAW 3 — Risk Kernel unit tests MUST be green before any order path.
+LAW 4 — Feature schema frozen before OOS; hash logged; mismatch = fail closed.
+LAW 5 — Costs (brokerage+STT+slip+lots) ON in every promote decision.
+LAW 6 — Purged/walk-forward only; random k-fold = forbidden for promote.
+LAW 7 — Loss gate mandatory before Risk; Risk veto absolute.
+LAW 8 — Secrets in env only; git-secrets/pre-commit block .env commits.
+LAW 9 — Kill switch tested BEFORE paper money psychology kicks in.
+LAW10 — If gate fails → STOP and fix. Never “go live to learn.”
+
+
+================================================================================
+4. WHAT “HIGH ACCURACY OUTPUT” MEANS HERE (OPERATIONAL)
+================================================================================
+
+We do NOT optimize for chat-like “confident answers.”
+We optimize for CORRECT PIPELINE OUTPUTS:
+
+  A. Data correctness
+     - Bars reconcile; no future leak in features
+     - Corp actions / continuous F&O rules tested
+
+  B. Model honesty
+     - OOS metrics after costs
+     - Loss model calibration (predicted P(hit stop) ≈ realized frequency)
+
+  C. Decision correctness
+     - Strategy → Portfolio → Loss → Risk → Exec order never skipped
+     - Every reject logged (reject = success when limits say so)
+
+  D. Ops correctness
+     - Heartbeat fail → flatten policy works
+     - Manual flatten works in < agreed seconds
+     - Audit reconstructs any order end-to-end
+
+If A–D pass, software-induced live disasters are minimized.
+Market PnL can still be negative — that is trading, not a pipeline bug.
+
+
+================================================================================
+5. PHASE 1 MICRO-STEPS (PRECISE — DO IN ORDER)
+================================================================================
+
+Each step has: Owner | You must provide | Agent delivers | EXIT GATE
+Do not start step N+1 until EXIT GATE of N is PASS.
+
+
+-----------------------------------------------------------------------------
+STEP P1.0.1 — LOCK DECISIONS
+-----------------------------------------------------------------------------
+Owner        : YOU (HoQR)
+You provide  : Broker choice, bar size, horizon H, risk %, paper sample size
+Agent        : Records into STRATEGY_SPEC_001 + RISK_CONFIG draft
+EXIT GATE    : Written one-pager signed by you (even informal chat OK if clear)
+
+
+-----------------------------------------------------------------------------
+STEP P1.0.2 — DISK + PYTHON + REPO HOME
+-----------------------------------------------------------------------------
+Owner        : YOU + Agent
+You provide  : Path on D: (or spacious drive); confirm free space ≥ 100GB
+Agent        : Creates repo skeleton, .gitignore (blocks .env), README run notes
+EXIT GATE    : `python -V` 3.11+; repo opens; C: not used as data root
+
+
+-----------------------------------------------------------------------------
+STEP P1.0.3 — SECRETS PATTERN (NO KEYS IN GIT)
+-----------------------------------------------------------------------------
+Owner        : YOU
+You provide  : Create `.env` locally from `.env.example` (keys empty until broker ready)
+Agent        : `.env.example`, loader, fail-fast if missing in live mode
+EXIT GATE    : Accidental `git status` never shows real secrets; CI greps for keys
+
+
+-----------------------------------------------------------------------------
+STEP P1.0.4 — INDIA COST MODEL v0
+-----------------------------------------------------------------------------
+Owner        : Agent writes; YOU confirm broker fee schedule
+You provide  : Your broker’s brokerage/STT/charges sheet (or screenshots/links)
+Agent        : Pure functions: fees(notional, side, product) + lot size table
+EXIT GATE    : Unit tests match known example tickets within tolerance
+               WITHOUT this → NO backtest promote
+
+
+-----------------------------------------------------------------------------
+STEP P1.0.5 — RISK KERNEL v0 (BEFORE ANY STRATEGY)
+-----------------------------------------------------------------------------
+Owner        : Agent
+You provide  : Exact numbers: max_daily_loss_pct, max_dd_halt_pct, max_lots,
+               max_rupee_loss_per_trade
+Agent        : Deterministic risk module + kill switch flags + unit tests
+EXIT GATE    : ≥20 unit tests green including: reject oversize, halt on DD,
+               halt on daily loss, reject when kill flag set
+               WITHOUT this → NO order path
+
+
+-----------------------------------------------------------------------------
+STEP P1.0.6 — LOSS PREDICTION INTERFACE STUB
+-----------------------------------------------------------------------------
+Owner        : Agent
+You provide  : Soft threshold policy intent (e.g. block if P(hit stop) > X)
+Agent        : Interface: score(draft_order) → skip|cut|flatten|hold + stub model
+EXIT GATE    : Every draft size must call Loss interface (enforced in code path test)
+
+
+-----------------------------------------------------------------------------
+STEP P1.0.7 — TRIAL REGISTRY
+-----------------------------------------------------------------------------
+Owner        : Agent
+You provide  : Nothing beyond Postgres/SQLite choice (default SQLite P1 OK)
+Agent        : Registry schema: trial_id, status, feature_hash, metrics, decision
+EXIT GATE    : Can insert REJECT and PROMOTE candidates; rejects never deleted
+
+
+-----------------------------------------------------------------------------
+STEP P1.0.8 — BROKER ADAPTER (PAPER FLAG) — ONLY AFTER KEYS
+-----------------------------------------------------------------------------
+Owner        : Agent codes; YOU supply keys
+You provide  : API key/secret in local `.env`; confirm market data works
+Agent        : Adapter: auth, rate limit, fetch OHLCV, place PAPER orders
+EXIT GATE    : Heartbeat OK; fetch Nifty/BankNifty history smoke test PASS
+               Place ONE paper order + cancel/reconcile logged
+NOTE         : If keys not ready → Agent builds MOCK feed from CSV and continues
+               research; live-data paper waits on you
+
+
+>>> GATE G0 — FOUNDATION COMPLETE
+    Risk tests green + cost tests green + secrets safe + registry works
+    YOU sign: “Foundation OK”
+
+
+-----------------------------------------------------------------------------
+STEP P1.1.1 — HISTORICAL DATA LANDING
+-----------------------------------------------------------------------------
+Owner        : Agent + YOU (access)
+You provide  : Broker history access OR CSV dump path
+Agent        : Parquet partitions by symbol/date; schema docs; row-count reports
+EXIT GATE    : Re-download checksum/row counts stable; missing bars report exists
+
+
+-----------------------------------------------------------------------------
+STEP P1.1.2 — CONTINUOUS FUTURES / EXPIRY RULES
+-----------------------------------------------------------------------------
+Owner        : Agent; YOU confirm roll preference
+You provide  : Roll rule choice (e.g. volume-based / days-to-expiry)
+Agent        : Continuous series builder + golden tests around known rolls
+EXIT GATE    : No look-ahead across expiry; spike audit around roll dates
+
+
+-----------------------------------------------------------------------------
+STEP P1.1.3 — FEATURE PIPELINE v0 (LEAN SET)
+-----------------------------------------------------------------------------
+Owner        : Agent
+You provide  : Confirm lean feature list from PHASE1_ML_ARCHITECTURE
+Agent        : Feature builder; schema JSON; freeze lock file
+EXIT GATE    : PIT leakage tests PASS (shift-future attack must be caught)
+               Feature hash stable for same input data
+
+
+-----------------------------------------------------------------------------
+STEP P1.1.4 — LABEL PIPELINE v0
+-----------------------------------------------------------------------------
+Owner        : Agent; YOU confirm H and stop definition
+You provide  : Horizon H; daily stop definition in ₹ or %
+Agent        : y_fwd_ret_H; y_hit_stop; label_def_id versioned
+EXIT GATE    : Labels only use future for TARGET column — never as features
+               Asserted by automated test
+
+
+>>> GATE G1 — DATA + FEATURES + LABELS HONEST
+    YOU sign: “No leakage tests green”
+
+
+-----------------------------------------------------------------------------
+STEP P1.2.1 — RIDGE BASELINE TRAIN
+-----------------------------------------------------------------------------
+Owner        : Agent runs on YOUR machine
+You provide  : Confirm train window dates; machine available
+Agent        : Train Ridge; log metrics to trial registry (status=EVAL)
+EXIT GATE    : Artifact saved; baseline metrics recorded (may be weak — OK)
+
+
+-----------------------------------------------------------------------------
+STEP P1.2.2 — LIGHTGBM ALPHA v0
+-----------------------------------------------------------------------------
+Owner        : Agent runs on YOUR machine (prefer high-end PC)
+You provide  : Time window when PC can run hours if needed
+Agent        : Train LightGBM; feature importance; artifact bundle + hash
+EXIT GATE    : Bundle contains model+schema+metrics+hash; infer smoke OK
+
+
+-----------------------------------------------------------------------------
+STEP P1.2.3 — LOSS MODEL v0
+-----------------------------------------------------------------------------
+Owner        : Agent
+You provide  : Confirm stop label matches live risk policy
+Agent        : Train calibrated classifier/GBDT for P(hit stop); separate hash
+EXIT GATE    : Calibration plot/table saved; threshold config wired
+
+
+>>> GATE G2 — MODELS EXIST AS VERSIONED ARTIFACTS
+    YOU sign: “Artifacts review OK (not yet promote)”
+
+
+-----------------------------------------------------------------------------
+STEP P1.3.1 — PURGED CV + WALK-FORWARD HARNESS
+-----------------------------------------------------------------------------
+Owner        : Agent
+You provide  : Embargo ≥ max feature lookback (confirm number)
+Agent        : Harness forbids random k-fold promote path
+EXIT GATE    : Attempting random CV for promote FAILS closed in code
+
+
+-----------------------------------------------------------------------------
+STEP P1.3.2 — COST-AWARE BACKTEST REPORT
+-----------------------------------------------------------------------------
+Owner        : Agent
+You provide  : Nothing if cost model already signed
+Agent        : Full report: net Sharpe, DD, turnover, hit rate, costs drag
+EXIT GATE    : Report generated for trial_id; stored in registry
+
+
+-----------------------------------------------------------------------------
+STEP P1.3.3 — PROMOTE / REJECT DECISION (HUMAN)
+-----------------------------------------------------------------------------
+Owner        : YOU
+You provide  : Written PROMOTE_TO_PAPER or REJECT + reason
+Agent        : Updates registry; REJECT kept forever
+EXIT GATE    : Only PROMOTE_TO_PAPER continues; ego does not override metrics
+
+
+>>> GATE G3 — RESEARCH HONESTY
+    If REJECT → new trial (change features/rules) — do NOT loosen costs/risk
+
+
+-----------------------------------------------------------------------------
+STEP P1.4.1 — STRATEGY RULES ENGINE
+-----------------------------------------------------------------------------
+Owner        : Agent; YOU approve thresholds
+You provide  : Threshold T, regime filter on/off
+Agent        : Rules module: score → intent (side/flat)
+EXIT GATE    : Unit tests for threshold edges; no order without intent
+
+
+-----------------------------------------------------------------------------
+STEP P1.4.2 — PORTFOLIO DRAFT SIZER
+-----------------------------------------------------------------------------
+Owner        : Agent
+You provide  : Max ₹ risk / max lots
+Agent        : Deterministic size from intent + caps (NO LLM)
+EXIT GATE    : Over-cap proposals impossible in unit tests
+
+
+-----------------------------------------------------------------------------
+STEP P1.4.3 — WIRE FULL PATH
+-----------------------------------------------------------------------------
+Owner        : Agent
+Path         : Intent → Portfolio → Loss → Risk → Exec(paper)
+EXIT GATE    : Integration test: Loss skip blocks exec; Risk veto blocks exec;
+               kill switch blocks exec — ALL proven
+
+
+-----------------------------------------------------------------------------
+STEP P1.4.4 — KILL SWITCH DRILL
+-----------------------------------------------------------------------------
+Owner        : YOU perform drill; Agent instruments
+You provide  : Run drill checklist; time the flatten
+EXIT GATE    : Manual flatten works; auto halt on simulated DD works
+               Logged with timestamps
+
+
+>>> GATE G4 — DECISION PATH SAFE
+    YOU sign: “I will not bypass Loss/Risk”
+
+
+-----------------------------------------------------------------------------
+STEP P1.5.1 — PAPER TRADING LIVE DATA
+-----------------------------------------------------------------------------
+Owner        : Agent ops scripts; YOU monitor daily
+You provide  : Attention during market hours for first weeks; alert channel
+Agent        : Paper loop; dashboards/logs; shortfall tracking
+EXIT GATE    : Reach PRE-AGREED sample (sessions/trades) — no early stop for PnL
+
+
+-----------------------------------------------------------------------------
+STEP P1.5.2 — PAPER SCORECARD
+-----------------------------------------------------------------------------
+Owner        : Agent computes; YOU judge
+Metrics      : shortfall vs backtest, missed signals, uptime, risk catches,
+               loss-block outcomes, ZERO uncaught risk breaches
+EXIT GATE    : Written scorecard
+
+
+-----------------------------------------------------------------------------
+STEP P1.5.3 — GO / NO-GO LIMITED LIVE
+-----------------------------------------------------------------------------
+Owner        : YOU ONLY
+You provide  : Signed GO or NO-GO; live capital ₹ ceiling; first-week babysit plan
+Agent        : If GO: enable live flag with SAME binaries; tiny size; enhanced logs
+EXIT GATE    : Without your signature → live flag remains OFF forever
+
+
+>>> GATE G5 — PHASE 1 COMPLETE (PAPER PASS)
+    Phase 2 AI enhancers only after G5
+
+
+================================================================================
+6. LIMITED LIVE (AFTER G5) — EXTRA SAFETY (NOT “SPEED”)
+================================================================================
+
+  - Capital: tiny fraction of paper-proven comfort
+  - First N days: YOU present during session open/close
+  - Any Risk halt → mandatory postmortem before resume
+  - No parameter edits mid-session without new trial_id
+  - No “increase size because yesterday lost” (code forbids)
+
+
+================================================================================
+7. RACI MATRIX (COMPACT)
+================================================================================
+
+R = Responsible (does work)  A = Accountable (final yes/no)
+C = Consulted                I = Informed
+
+| Work item                    | You (HoQR) | Cursor Agent |
+|-----------------------------|------------|--------------|
+| Broker account / API keys   | A / R      | I            |
+| Risk policy numbers         | A / R      | C (draft)    |
+| Write Risk Kernel code      | A (approve)| R            |
+| Train LightGBM on PC        | A (approve)| R (run)      |
+| Promote model to paper/live | A / R      | C (recommend)|
+| Place live order            | A          | R (code only if GO) |
+| Kill switch drill           | A / R      | C            |
+| Secrets in git              | A — forbid | R (guards)   |
+| Phase 2 AI enable           | A          | R (after G5) |
+
+
+================================================================================
+8. MINIMUM YOU MUST SEND ME TO START CODING TOMORROW
+================================================================================
+
+ANSWERED 2026-07-25. Values now live in alpha-desk/configs/ and may be edited
+there; the code re-validates them on every load.
+
+  1. Broker                : Angel One (SmartAPI); Yahoo Finance interim data
+  2. A1 Nifty/BankNifty    : YES as the Phase-1 scaffold universe
+  3. Bar size              : 15m
+  4. Horizon H             : 8 bars (2 hours)
+  5. Max daily loss        : 3.0% operating halt / 5.0% hard ceiling
+  6. Max portfolio DD halt : 12% from peak
+  7. Per-trade risk        : 2.0% of equity (3.0% ceiling), Rs 15,000 absolute,
+                             4 lots per order, 8 per instrument
+  8. Paper gate            : 60 sessions AND 100 closed trades, zero uncaught
+                             risk breaches
+  9. API keys              : ready, not yet shared -> adapter stubbed, research
+                             continues on Yahoo + synthetic bars
+ 10. Project path          : D:\Project Alpha\alpha-desk (data and logs on D:)
+
+Additional locks the Risk Kernel needed:
+  - Minimum R:R after costs : 2.0 (1:6 is tagged premium, not required)
+  - Portfolio limits        : margin utilisation 60%, not gross notional
+  - Planning capital        : Rs 5,00,000; first live ceiling Rs 50,000
+  - Risk basis              : min(current, start-of-day) equity, so size can
+                              never grow after losses
+
+
+================================================================================
+9. WHAT SUCCESS LOOKS LIKE AT END OF PHASE 1
+================================================================================
+
+  - Pipelines produce consistent, tested, auditable outputs
+  - Models versioned; rejects logged
+  - Paper path proves Risk+Loss catch bad sizes
+  - YOU understand every kill path
+  - Live still OFF until you sign G5→live
+  - No LLM on trading path
+  - Software-caused “huge loss from bug” risk driven to near-zero
+  - Market loss risk remains — controlled by YOUR ceilings
+
+
+================================================================================
+END OF PHASE1_EXECUTION_PLAYBOOK.txt
+================================================================================

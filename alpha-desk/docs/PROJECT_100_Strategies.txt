@@ -1,0 +1,259 @@
+================================================================================
+PROJECT ALPHA — BUSINESS / MARKET LOGIC BRIEF
+File: PROJECT_100_Strategies.txt
+Audience: Strategy creator / market analyst (real-market experience)
+Purpose: Explain WHAT we are trying to do in the market, WHICH data we need,
+         HOW the Market Data API fulfills it, HOW we chase accuracy in paper,
+         and HOW we reduce the classic “paper works, live fails” gap.
+Related engineering source of truth: PROJECT_100_ROADMAP.txt / .md
+================================================================================
+Status: ACTIVE
+Created: 2026-09-10
+Capital rule: NO real money until Gate G-LIVE is signed. Paper only until then.
+================================================================================
+
+
+1) ONE-SENTENCE CORE IDEA
+-------------------------
+Build a mid-frequency, rules + ML assisted system that trades NSE INDEX FUTURES
+(NIFTY / BANKNIFTY first), flat by end of day, with strict risk limits — trained
+and paper-traded on the SAME clean market-data warehouse we will use live.
+
+
+2) WHAT “WINNING” MEANS (BUSINESS, NOT HYPE)
+--------------------------------------------
+We are NOT trying to:
+  - Predict every tick
+  - Be HFT / co-location
+  - Trade full options book on Day 1
+  - Promise “zero loss” (markets do not allow that promise)
+
+We ARE trying to:
+  - Have a repeatable edge after costs on INDEX FUTURES (15m primary; 1m for
+    finer labels / risk)
+  - Prove that edge on PAPER with the same feed recipe as live
+  - Size risk so bad days are survivable (daily loss / max DD / kill switch)
+  - Only then put tiny real capital at risk
+
+Accuracy here means: PROCESS accuracy (same data, same features, same rules,
+honest validation) — not a fake high win-rate on short trial history.
+
+
+3) LOCKED PRODUCT SHAPE (PHASE 1 STRATEGY SLEEVE A1)
+----------------------------------------------------
+Instrument focus:
+  - Primary: NIFTY index futures (dated + continuous)
+  - Secondary: BANKNIFTY index futures
+  - Cash index (NIFTY 50 / NIFTY BANK) for anchoring / calendar / spot reference
+  - Options / full chain: RESEARCH SIDE PATH for now (not required to promote A1)
+
+Style:
+  - Mid-frequency (bars), not tick scalping
+  - Intraday only — overnight FORBIDDEN until a gap model is approved
+  - Flatten by ~15:15 IST (no overnight inventory)
+
+Decision stack (business view):
+  1. Market data → clean bars in warehouse
+  2. Features (lean set: vol, ATR, EMA ratios, VWAP distance, time-of-day, …)
+  3. Models:
+       - ridge_alpha     → simple directional / expected-move score
+       - lgbm_alpha      → nonlinear score
+       - loss_hit_stop   → probability stop is hit (risk filter)
+  4. Strategy rules + threshold → want trade or not
+  5. Risk kernel → may VETO even if model likes it
+  6. Order path → PaperBroker now; Angel (or chosen broker) later for live
+
+This file is for STRATEGY LOGIC. Engineering gates live in PROJECT_100_ROADMAP.
+
+
+4) WHAT MARKET DATA WE ACTUALLY NEED (AND WHY)
+----------------------------------------------
+Think in layers. If a layer is wrong, models look smart in paper and die live.
+
+A. MUST-HAVE for Phase 1 futures sleeve
+   - OHLCV bars: 15m (primary decision clock), 1m (labels / finer risk)
+   - EOD / daily for index: calendar learning, regime context
+   - Correct symbol master: lot size, expiry, token, underlying
+   - Session calendar: NSE holidays + special sessions (Muhurat)
+   - Live LTP / touchline during session for marks and paper fills
+   - Continuous future (vendor-spliced) OR explicit roll rules for dated months
+
+B. SHOULD-HAVE (improves paper realism; not Day-1 promote blocker)
+   - L1 bid/ask (better fill / slippage model)
+   - Tick history (short window) for microstructure checks
+   - Corporate actions / name changes (equity path; futures less critical)
+
+C. DEFER for Phase 1 promote (cost / complexity)
+   - Full options chain history + Greeks as primary alpha
+   - Depth / Level-2
+   - Co-lo latency
+
+Why futures first (analyst view):
+  - Liquid, one India-beta book, clear session, lot sizing known
+  - Options add strike/expiry/Greeks surface — huge data + regime risk before
+    the futures sleeve is proven
+
+
+5) HOW THE MARKET DATA API FULFILLS THIS (TRUEDATA ROLE)
+-------------------------------------------------------
+TrueData Market Data API is the intended MARKET-DATA SYSTEM OF RECORD (SoR)
+for research + paper features in Phase 1.
+
+What we take from it:
+  - REST history: bars / ticks / expiry list / symbol master / (optional) chain
+  - WebSocket live: touchline / trades / bars (port assigned per account)
+  - Trial lesson: history DEPTH is plan-limited (trial ≈ 15 days bars, 2 days ticks)
+    → trial proves PIPELINE; paid plan proves RESEARCH DEPTH
+
+What we do NOT take from it:
+  - Orders / positions / margins (that is BROKER = Angel later)
+  - “Truth” without quality gates (gaps quarantine; no silent fill for promote)
+
+Hybrid later (optional):
+  - TrueData remains SoR for features until a written Feed Parity Gate passes
+  - Angel = execution; Angel quotes may be secondary marks only after parity
+
+Canonical flow (must stay true forever):
+
+    TrueData (history + live)
+            ↓
+    Quality gates + immutable local warehouse (parquet)
+            ↓
+    SAME features / labels for train, paper, and (later) live
+            ↓
+    Models + strategy + risk
+            ↓
+    PaperBroker  →  (only after G-LIVE) tiny live broker orders
+
+
+6) ACCURACY DOCTRINE — HOW WE GET AS CLOSE AS POSSIBLE
+------------------------------------------------------
+6.1 Data accuracy
+  - Prefer quarantine over “force accept” bad series
+  - Holiday calendar verified; observed trading days learned from index EOD
+  - Symbology from master (e.g. NIFTY26SEPFUT expiry from CSV, not guesses)
+  - Versioned store: know exactly which data trained which model
+
+6.2 Research accuracy
+  - Train only on PROMOTED partitions
+  - Purged walk-forward + embargo (no peeking at future bars)
+  - Promote-grade needs YEARS of 15m (prefer 3–7y), not 15 trial days
+  - Short-sample IC can look great and still be noise — do not promote on it
+
+6.3 Paper accuracy (this is where most retail systems lie to themselves)
+  Paper must use:
+  - Same SoR feed as training (TrueData → warehouse → features)
+  - Same strategy threshold / risk kernel
+  - Conservative fill assumptions (slippage, spread, fees)
+  - Session flatten + kill switch drills
+
+  Paper sample gate (minimum honesty):
+  - ≥ 60 trading sessions OR ≥ 100 paper trades with written review
+  - Track: PnL, max DD, hit rate, slippage vs model, feed outages, kill events
+
+6.4 Live accuracy (after paper)
+  - Tiny capital first (planning ceiling e.g. ₹50k notionally)
+  - Same binaries; go-signature deliberate
+  - Human on-call first week; kill switch proven
+
+
+7) PAPER WORKS, LIVE FAILS — WHY, AND HOW WE HANDLE IT
+------------------------------------------------------
+This is the #1 trap. We treat it as EXPECTED unless proven otherwise.
+
+Common gaps (and our handling):
+
+| Gap | What happens | How we handle |
+| --- | --- | --- |
+| Train/serve skew | Train on Vendor A bars, live on Vendor B candles | Paper/live features from SAME warehouse SoR; parity gate before switching feed |
+| Optimistic fills | Paper fills mid; live pays spread + slip | Model L1 bid/ask when available; add cost/slippage haircut in paper |
+| Latency / stale | Signal on old bar; market already moved | Mid-freq bars; reject stale marks; no new risk if feed dies |
+| Partial fills / rejects | Paper assumes full lot | Order path must model reject/partial before live size-up |
+| Liquidity regime | Thin minutes look fine historically | Flat-bar / gap quality flags; avoid forcing illiquid continuous series |
+| Costs | Fees + STT + impact eat edge | Contract-note verified costs; min R:R after costs enforced |
+| Overnight gap | Gap opens through stop | Overnight forbidden until gap model approved |
+| Overfit | Paper curve-fit to short history | Purged WF + long paper sample + promote reject allowed |
+| Ops failure | Feed/PC down mid-day | Unattended scheduler + integrity heartbeat; flat / no new risk on outage |
+
+Rule of thumb for the analyst:
+  If paper PnL assumes “perfect fill at close of signal bar,” it is NOT
+  deployment evidence. Demand a worse-case slip scenario before recommending live.
+
+
+8) WHAT WE NEED FROM YOU (STRATEGY / ANALYST OWNER)
+---------------------------------------------------
+Please challenge and improve THIS logic — not the plumbing details.
+
+A. Strategy definition
+  - Confirm A1 remains index-futures mid-freq, or propose a written alternative
+  - Entry/exit narrative in market language (not only ML scores)
+  - When NOT to trade (news, expiry day, wide spreads, half-day sessions)
+
+B. Thresholds & risk (with engineering configs)
+  - alpha_score_threshold rationale
+  - Stop / target / time-stop logic consistent with loss_hit_stop model
+  - Session filters (open auction noise, last 15 minutes, etc.)
+
+C. Paper → live checklist (your sign-off language)
+  - What metrics make you say “edge survived paper”
+  - What single failure forces “stay paper / reduce size”
+  - Slippage budget you will accept before declaring edge dead
+
+D. Future sleeves (only after A1 survives)
+  - Options / OI / Greeks — when justified, which data fields required
+  - Equities sleeve — corp actions requirements
+
+Deliverable style we want from you:
+  - Plain English + tables
+  - Explicit assumptions
+  - Explicit “kill criteria”
+  - No “guaranteed returns” language
+
+
+9) DATA FIELD CHEAT-SHEET (ANALYST ↔ ENGINEER)
+----------------------------------------------
+For each decision clock, we need at least:
+
+  Bars: timestamp (IST), open, high, low, close, volume, (OI for F&O if used)
+  Contract: root, expiry, lot_size, exchange, vendor_symbol
+  Live: LTP, optional bid/ask, event time
+  Provenance: vendor, ingest time, quality verdict
+
+If a strategy idea needs a field not in this list, WRITE IT HERE before coding:
+  ___________________________________________________________________________
+  ___________________________________________________________________________
+
+
+10) RELATIONSHIP TO OTHER DOCS
+------------------------------
+  PROJECT_100_ROADMAP.txt/.md  → engineering gates to 100% / real-money go
+  MARKET_DATA_REQUIREMENTS.md  → technical RFQ / vendor depth
+  DECISIONS_LOCKED.md          → lot sizes, risk %, paper gates, overnight ban
+  This file                    → market/business logic for strategy analysts
+
+If roadmap and this file conflict on SAFETY (live capital, overnight, promote):
+  ROADMAP + DECISIONS_LOCKED win until HoQR overrides in writing.
+
+
+11) CURRENT HONEST STATUS (as of 2026-09-10)
+--------------------------------------------
+  - TrueData trial pipeline works; first trains exist; promote=false (correct)
+  - Scheduler for live capture installed; laptop must stay awake on market days
+  - NOT ready for real money
+  - Next business decision: paid market-data depth after trial (not more free trials)
+
+
+================================================================================
+END — PROJECT_100_Strategies.txt
+Ask the analyst to append a dated “Analyst notes” section below when reviewing.
+================================================================================
+
+ANALYST NOTES (append below)
+----------------------------
+Date:
+Reviewer:
+Verdict on A1 sleeve:  [ ] Keep  [ ] Modify  [ ] Replace
+Key risks called out:
+Recommended paper kill criteria:
+Recommended live size-up criteria:
+================================================================================

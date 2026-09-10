@@ -1,0 +1,57 @@
+# ============================================================================
+# INSTRUMENT MASTER v1
+# ----------------------------------------------------------------------------
+# RESEARCH FALLBACK ONLY. Before paper/live, the broker instrument master and
+# live SPAN calculator are authoritative. YAML must not silently invent lots.
+#
+# Live check (2026-07-26, Zerodha public futures margin calculator + NSE lot
+# circulars effective Jan 2026):
+#   NIFTY lot 65, BANKNIFTY lot 30, FINNIFTY lot 60
+#   NRML margin ~11.3% of notional in calm markets (changes daily)
+# ============================================================================
+
+lots_as_of: "2026-07-26"
+lots_source: "NSE lot circular (Jan 2026) + Zerodha futures margin calculator"
+authoritative_source: "broker_instrument_master"
+margin_as_of: "2026-07-26"
+margin_source: "research_snapshot_not_authoritative"
+margin_note: >
+  margin_pct below is a calm-market NRML snapshot (~SPAN+ELM style), NOT a
+  guarantee. Event days can jump well above this. Live trading must query the
+  broker SPAN/RMS calculator per order; if that feed is missing, fail closed.
+
+instruments:
+  NIFTY:
+    kind: "FUTURES"
+    exchange: "NFO"
+    lot_size: 65                 # was wrongly 75 until IC audit 2026-07-26
+    tick_size: 0.05
+    margin_pct: 11.5             # live snapshot ~11.32%; research approx only
+    slippage_profile: "index_futures"
+    correlation_cluster: "INDIA_LARGECAP_INDEX"
+    data_proxy: "^NSEI"
+
+  BANKNIFTY:
+    kind: "FUTURES"
+    exchange: "NFO"
+    lot_size: 30
+    tick_size: 0.05
+    margin_pct: 11.5
+    slippage_profile: "index_futures"
+    correlation_cluster: "INDIA_LARGECAP_INDEX"
+    data_proxy: "^NSEBANK"
+
+  FINNIFTY:
+    kind: "FUTURES"
+    exchange: "NFO"
+    lot_size: 60                 # was wrongly 65 until IC audit 2026-07-26
+    tick_size: 0.05
+    margin_pct: 11.5
+    slippage_profile: "index_futures"
+    correlation_cluster: "INDIA_LARGECAP_INDEX"
+    data_proxy: "NIFTY_FIN_SERVICE.NS"
+
+expiry_rules:
+  roll_rule: "days_to_expiry"
+  roll_days_before_expiry: 2
+  note: "Continuous series must never look across a roll. Golden tests in P1.1.2."

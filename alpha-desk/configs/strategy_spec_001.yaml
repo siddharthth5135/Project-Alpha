@@ -1,0 +1,95 @@
+# ============================================================================
+# STRATEGY_SPEC_001  --  A1: Index F&O regime-conditional
+# First (and for Phase 1, only) strategy code path.
+# Architecture stays instrument-agnostic; THIS SPEC is the v0 scaffold config.
+# ============================================================================
+
+strategy_id: "A1_INDEX_REGIME_V0"
+status: "RESEARCH"        # RESEARCH -> PAPER -> LIMITED_LIVE (HoQR signs each)
+created: "2026-07-25"
+
+universe:
+  # Phase 1 scaffold: two index underlyings only. Adding names requires a new
+  # trial_id, not an edit here.
+  underlyings:
+    - "NIFTY"
+    - "BANKNIFTY"
+  product: "FUTURES"      # options structures deferred to late Phase 1 / Phase 2
+  # Interim data proxies until Angel One SmartAPI history is wired.
+  data_proxy:
+    NIFTY: "^NSEI"
+    BANKNIFTY: "^NSEBANK"
+
+bars:
+  primary_timeframe: "15m"
+  # Secondary frame is computed for regime context only, never for labels.
+  context_timeframe: "1d"
+
+horizon:
+  # H = 8 bars of 15m = 2 trading hours, matching HoQR's "can be 2 hour" answer.
+  bars: 8
+  label_definition: "y_fwd_ret_H (net of cost drag) + y_hit_stop (triple barrier)"
+
+features:
+  # LEAN frozen set v0 (PHASE1_ML_ARCHITECTURE section 3.2). The authoritative
+  # definition is code plus the committed lock file at
+  # configs/feature_locks/lean_v0.json; this list is documentation.
+  # Expand only via a new version and a new trial.
+  - "r_1"
+  - "r_5"
+  - "r_20"
+  - "ema_fast_slow_ratio"
+  - "ema_slope"
+  - "rsi_14"
+  - "realized_vol_20"
+  - "atr_14"          # points, for stop sizing
+  - "atr_14_pct"      # scale-free, for the model when instruments are pooled
+  - "volume_zscore_20"
+  - "time_of_day"
+  - "day_of_week"
+  - "vol_regime_bucket"
+  - "vwap_distance"
+
+models:
+  baseline: "ridge"
+  primary: "lightgbm"
+  challenger: "xgboost"     # optional; promote only if it beats LGBM OOS
+  loss_model: "lightgbm_calibrated"
+
+validation:
+  scheme: "walk_forward_purged"
+  # Must be >= the feature warmup, which is 141 bars for lean/v0 (the volatility
+  # regime bucket needs a 120-bar trailing window on top of a 20-bar vol
+  # estimate). build_dataset.py refuses to run if this is too small.
+  embargo_bars: 150
+  random_kfold_promote: false   # code fails closed if attempted
+
+entry_rules:
+  # HoQR must approve T before PROMOTE_TO_PAPER. 0.0 = any nonzero score may enter
+  # (research / paper-path plumbing only).
+  alpha_score_threshold: 0.0
+  require_regime_ok: true
+  require_liquidity_ok: true
+  # 0=low, 1=mid, 2=high realised-vol tercile. All allowed until HoQR tightens.
+  allowed_regime_buckets: [0, 1, 2]
+  min_volume_zscore: -5.0
+  min_rr_after_costs: 2.0
+  stop_atr_multiple: 1.5
+  side: "sign(alpha_score)"
+  flat_when: "regime not ok OR score below threshold OR loss gate blocks"
+
+exit_rules:
+  stop_atr_multiple: 1.5
+  stop_loss: "1.5 * ATR_14 from entry"
+  target: "min_rr_after_costs * stop_distance"
+  time_exit_bars: 8
+  session_flatten: true
+  allow_overnight: false   # IC 2026-07-26: flat-by-close until gap model exists
+  force_flatten_at: "15:15"
+
+promotion:
+  requires:
+    - "no-leakage tests green"
+    - "cost-aware OOS report in trial registry"
+    - "loss model calibration table"
+    - "HoQR written PROMOTE_TO_PAPER"

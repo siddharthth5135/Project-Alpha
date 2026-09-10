@@ -1,0 +1,92 @@
+{
+  "features": [
+    {
+      "description": "ATR in points, for stop sizing",
+      "implementation_hash": "559c24d4a6a3e0bb",
+      "lookback": 15,
+      "name": "atr_14"
+    },
+    {
+      "description": "ATR as a fraction of price",
+      "implementation_hash": "61ede6742632501b",
+      "lookback": 15,
+      "name": "atr_14_pct"
+    },
+    {
+      "description": "0=Monday",
+      "implementation_hash": "b35f9b37f6268af2",
+      "lookback": 0,
+      "name": "day_of_week"
+    },
+    {
+      "description": "EMA12/EMA26 - 1",
+      "implementation_hash": "b8526d2bd28e9c18",
+      "lookback": 104,
+      "name": "ema_fast_slow_ratio"
+    },
+    {
+      "description": "5-bar change in EMA26, scaled by level",
+      "implementation_hash": "fccf6d633e7de625",
+      "lookback": 109,
+      "name": "ema_slope"
+    },
+    {
+      "description": "1-bar return",
+      "implementation_hash": "672107423a2eef1d",
+      "lookback": 1,
+      "name": "r_1"
+    },
+    {
+      "description": "20-bar return",
+      "implementation_hash": "8fa5effdcfcf2852",
+      "lookback": 20,
+      "name": "r_20"
+    },
+    {
+      "description": "5-bar return",
+      "implementation_hash": "6d558166452327f1",
+      "lookback": 5,
+      "name": "r_5"
+    },
+    {
+      "description": "stdev of 20 log returns",
+      "implementation_hash": "13c2ef22a9594e55",
+      "lookback": 21,
+      "name": "realized_vol_20"
+    },
+    {
+      "description": "Wilder RSI, 14 bars",
+      "implementation_hash": "ffd5fe66217b1b02",
+      "lookback": 15,
+      "name": "rsi_14"
+    },
+    {
+      "description": "fraction of the IST session elapsed",
+      "implementation_hash": "74305b1fdec7cb99",
+      "lookback": 0,
+      "name": "time_of_day"
+    },
+    {
+      "description": "trailing tercile of realised vol: 0 low, 1 mid, 2 high",
+      "implementation_hash": "7d1bde8c109b7729",
+      "lookback": 141,
+      "name": "vol_regime_bucket"
+    },
+    {
+      "description": "volume z-score, 20 bars",
+      "implementation_hash": "231013ae06aed6ec",
+      "lookback": 20,
+      "name": "volume_zscore_20"
+    },
+    {
+      "description": "close vs running session VWAP",
+      "implementation_hash": "9e36576b17e6c4ee",
+      "lookback": 1,
+      "name": "vwap_distance"
+    }
+  ],
+  "hash": "e41d424d3f7ee97e3c5b19e599138a3f35ca625aa9522615824be7f546497e73",
+  "max_lookback": 141,
+  "name": "lean",
+  "version": "v0"
+}
