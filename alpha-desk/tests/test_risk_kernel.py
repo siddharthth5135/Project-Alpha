@@ -121,31 +121,26 @@ def test_exits_are_allowed_while_halted(kernel, approved_draft, state, market_ti
 # --------------------------------------------------------------------------- #
 
 
-def test_live_mode_without_signature_cannot_construct_settings(tmp_path):
-    with pytest.raises(ValueError, match="ALPHA_LIVE_GO_SIGNATURE"):
+def test_live_mode_cannot_construct_settings_paper_only_phase(tmp_path):
+    with pytest.raises(ValueError, match="paper-only"):
         AppSettings(
             mode=Mode.LIVE,
             data_root=tmp_path,
             artifact_root=tmp_path,
             log_root=tmp_path,
-            live_go_signature="",
+            live_go_signature="GO-LIVE 2026-09-20 HoQR",
         )
 
 
-def test_live_mode_with_unsigned_risk_config_is_rejected(
-    kill_switch, approved_draft, state, market_time, tmp_path, risk_config
-):
-    live_settings = AppSettings(
-        mode=Mode.LIVE,
+def test_paper_settings_never_enable_live(tmp_path):
+    settings = AppSettings(
+        mode=Mode.PAPER,
         data_root=tmp_path,
         artifact_root=tmp_path,
         log_root=tmp_path,
-        live_go_signature="GO-LIVE 2026-07-25 HoQR",
+        live_go_signature="GO-LIVE should be ignored",
     )
-    unsigned = risk_config.model_copy(update={"signed_by": "", "signed_on": ""})
-    live_kernel = RiskKernel(unsigned, kill_switch, live_settings)
-    decision = live_kernel.evaluate(approved_draft, state, market_time)
-    assert ReasonCode.UNSIGNED_RISK_CONFIG in codes(decision)
+    assert settings.live_enabled is False
 
 
 # --------------------------------------------------------------------------- #

@@ -1,119 +1,113 @@
-# Compliance Audit — alpha-desk (P1.4)
+# Compliance Audit — alpha-desk (P1.4 re-audit)
 
 **Role:** Strict Compliance Monitoring Agent (independent review — not implementation)  
-**Date:** 2026-07-26  
-**Subject:** Project Alpha / `alpha-desk` through Phase 1.4 scaffolding  
+**Date:** 2026-09-20  
+**Prior audit:** 2026-07-26 scored **54 / 100**  
+**Subject:** Project Alpha / `alpha-desk` after TrueData trial ingest, Angel MD adapter (gated), ops/console/Telegram, **paper-only live-order lock**  
 **Bar:** Institutional production readiness (pass ≥ **95**)  
+**Evidence:** `verify_g4.py` PASS · `kill_switch_drill.py` PASS · providers `angelone,truedata,truedata_mock` · TrueData partitions present · `AngelOneBroker` construct refused · `ALPHA_MODE=live` refused · offline TrueData train+paper ran  
 **Interactive summary:** Cursor canvas `compliance-audit-p14.canvas.tsx`
 
 ---
 
 ## Overall Compliance Score
 
-# **54 / 100 — REJECT for production deployment**
+# **68 / 100 — REJECT for production / live capital**
 
-| Lens | Score |
-| --- | ---: |
-| Architecture | 68 |
-| Data engineering | 48 |
-| Machine learning | 55 |
-| Security | 72 |
-| Risk management | 62 |
-| Reliability / fault tolerance | 32 |
-| Software engineering | 70 |
-| Observability / auditability | 64 |
-| Performance / scalability | 50 |
-| Disaster recovery | 28 |
+| Lens | Prior | Now | Notes |
+| --- | ---: | ---: | --- |
+| Architecture | 68 | **78** | Vendor-agnostic MD port + TrueData + Angel adapters |
+| Data engineering | 48 | **70** | TrueData warehouse/store real; Angel coded but OFF; depth still shallow for promote |
+| Machine learning | 55 | **64** | Real TrueData trains exist; still `promote_eligible=false` |
+| Security | 72 | **86** | Live ORDER path hard-disabled; live mode settings refused |
+| Risk management | 62 | **66** | Kill drill PASS; equity-from-fills / session flatten actuators still weak |
+| Reliability / FT | 32 | **60** | Scheduler, holiday skip, heartbeat, journal, Telegram |
+| Software engineering | 70 | **76** | Ops scripts + tests; G0 suite must stay green |
+| Observability | 64 | **80** | Console + journal + daily Telegram HTML report |
+| Performance / scale | 50 | **52** | Mid-freq paper OK; not load-proven |
+| Disaster recovery | 28 | **38** | Friend-PC zip runbook verbal; no broker reconcile yet |
 
-**Paper research (gated):** CONDITIONAL ACCEPT — only with synthetic/Yahoo marked non-promote, live OFF, and HoQR aware of Critical gaps.  
-**Live capital:** BLOCKED.
+**Paper research (gated):** **CONDITIONAL ACCEPT** — paper-only, TrueData/Angel-gated, HoQR aware of remaining Criticals.  
+**Live capital / live orders:** **BLOCKED** (by design this phase).
+
+**Delta vs Jul 2026:** **+14 points**. Still ≪ 95. Not production-ready.
 
 ---
 
-## Critical Issues
+## Critical Issues (updated)
 
-1. **C1 — No TrueData / promote-grade market-data ingest.** Providers are synthetic + yahoo only; `fetch_data.py` has no `truedata` path. Velocity trial ≠ API.
-2. **C2 — Trading PnL does not update `RiskState` equity.** `register_fill` updates positions/trades only; daily-loss halt cannot fire from actual fills.
-3. **C3 — Ops flatten policies do not flatten.** `flatten_on_data_feed_loss`, `force_flatten_at` reject new risk; no actuator calls `OrderPath.flatten`.
-4. **C4 — No reconciliation / persisted desk state.** Restart uses `RiskState.fresh` → orphan risk vs broker book.
-5. **C5 — `Desk.broker` is public.** Convention-only protection; `broker.place()` can skip kernel.
-6. **C6 — No strategy exit path.** FLAT/ENTER only; stops/targets are sizing inputs, not managed exits.
-7. **C7 — Promote evidence is still plumbing.** Artifacts `promote_eligible=false`; no vendor history yet.
-8. **C8 — Angel live execution unfinished (correctly inert).** Blocks G5; when built must include timeouts/retries/idempotency.
+| ID | Status | Finding |
+| --- | --- | --- |
+| **C1** | **PARTIAL** | TrueData ingest/store exists (trial depth). Multi-year promote-grade FUT still missing. Angel MD adapter exists but `ANGELONE_ALLOW_MARKETDATA=false`. |
+| **C2** | OPEN | Trading PnL → `RiskState` equity / daily-loss from fills still incomplete. |
+| **C3** | OPEN | `force_flatten_at` / feed-loss policies still do not fully actuate flatten loop in ops. |
+| **C4** | OPEN | No broker reconciliation / persisted desk state across restart. |
+| **C5** | OPEN | `Desk.broker` still publicly reachable (convention, not hard encapsulate). |
+| **C6** | OPEN | No managed strategy exit engine (FLAT/ENTER-centric). |
+| **C7** | OPEN | Promote evidence still not Fully GO (`promote=False` on latest trains). |
+| **C8** | **REMEDIATED (stricter)** | Live Angel **orders** disabled outright; `ALPHA_MODE=live` refused. Re-enable only after paper gates + explicit human rebuild. |
 
 ---
 
 ## High-Risk Issues
 
-- **H1** Kill switch engage/clear does not write `AuditEvent.KILL_SWITCH`.
-- **H2** Warehouse monthly Parquet rewritten in place — no `schema_version` / immutability lock.
-- **H3** Dirty bars still written; QA does not quarantine.
-- **H4** Continuous futures not wired into dataset/warehouse path.
-- **H5** Training `time_holdout` ≠ purged WF — easy to over-claim OOS.
-- **H6** Any non-empty `ALPHA_LIVE_GO_SIGNATURE` enables `live_enabled`.
-- **H7** `--force-plumbing` / `--skip-pit` escape hatches can mint dishonest promote paths.
-- **H8** `OrderPath.flatten` bypasses kernel by design (acceptable for emergency; must stay audited and rare).
+- **H1** Kill engage/clear audit event coverage still incomplete vs ideal (drill proves refuse+flatten).
+- **H2** Warehouse monthly rewrite / immutability story incomplete.
+- **H3** Quarantine path exists in MarketStore ingest; warehouse path still weaker.
+- **H4** Continuous futures: vendor-spliced CONT present in TrueData store; desk-roll Angel path is stand-in only.
+- **H5** Train holdout ≠ full purged WF claim for promote.
+- **H6** ~~GO signature alone enables live~~ → **closed** by paper-only lock (replaced by total LIVE refuse).
+- **H7** Plumbing escape hatches still exist for research — must not be used for promote claims.
+- **H8** `OrderPath.flatten` bypasses kernel by design (emergency) — keep rare + audited.
+- **H9 (new)** Two writer PCs without sync can corrupt the store — ops must designate one SoR writer.
+- **H10 (new)** Telegram/Angel secrets in local `.env` — never zip-share casually.
 
 ---
 
 ## Medium-Risk Issues
 
-- Zero-volume bars counted but not raised as issues (Yahoo may look clean).
-- No NSE session/holiday gap detection.
-- Flat / no-trade bars not audited.
-- `LossAction.FLATTEN` never emitted by loss gate.
-- `max_order_age_seconds` unused.
-- No Monte Carlo / parameter sensitivity / dual-feed parity.
-- `verify_foundation` secret scan misses `TRUEDATA_*`.
-- Report PnL is label/sign simulation, not full execution TCA.
-
----
-
-## Low-Risk Suggestions
-
-- Formal `MarketDataProvider` (stream + masters + calendar).
-- Stricter GO signature format validation.
-- Shadow Angel MD feed only after TrueData SoR + Feed Parity Gate.
-- Redis last-bar cache after live paper exists.
-- CI static analysis depth as team prefers.
+- Cost schedule still not contract-note verified (blocks promote).
+- Instrument margins research_snapshot, not SPAN.
+- Angel live MD uses quote-poll (not full WS binary) — fine for mid-freq store; document skew risk vs future live marks.
+- Holiday Telegram fires at preopen only (good); weekday exchange holidays depend on calendar file currency.
+- Train/paper SoR currently TrueData hist; future Angel live marks need Feed Parity Gate before any live orders (when re-added).
 
 ---
 
 ## Compliance Violations
 
-| Standard | Violation |
+| Standard | Status |
 | --- | --- |
-| Clean Architecture / DIP | Market-data SoR adapters missing; features OK |
-| Immutable versioned datasets | Monthly overwrite without version/audit |
-| Independent risk enforcement | Limits exist; PnL + session flatten incomplete |
-| Vendor-agnostic MD | Protocol thin; TrueData/Angel MD absent |
-| Train/serve consistency | Future Angel-live features risk skew vs TrueData train |
-| DR / reconcile | Runbooks without code |
-| Audit completeness | Kill/heartbeat/flat gaps vs paper_gate 100% claim |
+| Clean Architecture / vendor-agnostic MD | Improved — port + adapters present |
+| Immutable versioned datasets | Partial |
+| Independent risk enforcement | Partial — submit path strong; PnL/session flatten weak |
+| Train/serve consistency | At risk if Angel live marks ≠ TrueData train without parity |
+| Live capital controls | **Strong this phase** (orders disabled) |
+| DR / reconcile | Still weak |
+| Audit completeness | Better (ops journal); kill audit gaps remain |
 
 ---
 
 ## Security Findings
 
-**Strengths:** `.env` gitignored; `.env.example` empty; live mode requires signature; Angel refuses non-live construct; place/connect inert.
+**Strengths:** `.env` gitignored; live mode refused; Angel order broker always raises; market-data dual-gated (`ALLOW` + `--i-allow-network`); Telegram reports use HTML escape.
 
-**Weaknesses:** Local `.env` holds secrets (rotate if ever shared/pasted); GO signature format not validated; kill engage/clear not hash-chained in audit; foundation scanner incomplete for TrueData env vars.
-
----
-
-## Architectural Findings
-
-**Strengths:** Single `OrderPath` funnel; strategy → Intent only; loss advice mandatory at kernel; source-partitioned warehouse; Broker ABC; features/models free of vendor SDKs.
-
-**Weaknesses:** Public `Desk.broker`; doc `MARKET_DATA_REQUIREMENTS.md` ahead of code; continuous futures lab-only; no exit engine; paper path ≠ production ops loop.
+**Weaknesses:** Local secrets concentration; zip-to-friend must not include `.env` in shared channels; rotate if ever leaked.
 
 ---
 
-## Quantitative Finance Findings
+## Gate evidence (2026-09-20)
 
-**Strengths:** PIT + shift-future controls with failing controls; plumbing cannot promote without force; purged expanding WF; feature lock hash; cost-aware report caveats.
-
-**Weaknesses:** No real NFO history yet; continuous not in train path; label PnL ≠ execution sim; no robustness suite (MC, sensitivity); survivorship/expired-contract coverage blocked until TrueData; regime dependency untested on real data.
+| Check | Result |
+| --- | --- |
+| `verify_g4.py` | PASS |
+| `kill_switch_drill.py` | PASS |
+| Desk broker class | `PaperBroker` |
+| `live_enabled` | False |
+| Angel orders construct | BrokerError DISABLED |
+| Providers registered | angelone, truedata, truedata_mock |
+| TrueData bar partitions | present |
+| Offline TrueData train+paper | ran OK (promote=False) |
 
 ---
 
@@ -121,22 +115,19 @@
 
 | Pri | Action |
 | --- | --- |
-| **P0** | Get **TrueData Market Data API** enabled (not Velocity); ingest → `data/bars/truedata/`; reply `TrueData API enabled` |
-| **P0** | Wire fill → equity/PnL in `RiskState`; prove daily-loss halt |
-| **P0** | Actuate `force_flatten_at` + feed-loss flatten |
-| **P0** | Persist/reconcile positions on startup |
-| **P1** | Encapsulate broker; only `OrderPath` may `place` |
-| **P1** | Audit kill engage/clear; restrict force-plumbing |
-| **P1** | Quarantine dirty data; `schema_version`; gap/session QA |
-| **P1** | Wire continuous futures into dataset builder |
-| **P2** | Exit engine before live; Angel retries/timeouts/idempotency |
-| **P2** | Feed Parity Gate before any Angel-as-MD plan |
-| **HoQR** | Approve `alpha_score_threshold`; run `kill_switch_drill.py`; sign G4 |
+| **P0** | Keep **paper-only**; do not re-enable live orders until gates + written GO |
+| **P0** | Decide Angel MD enable (`ANGELONE_ALLOW_MARKETDATA`) only with explicit approval — then daily capture |
+| **P0** | Wire fill → equity/PnL; prove daily-loss halt from fills |
+| **P0** | Actuate session flatten + feed-loss flatten in ops loop |
+| **P1** | Persist/reconcile state; encapsulate broker |
+| **P1** | Feed Parity Gate before any future live marks ≠ research SoR |
+| **P1** | Deepen real FUT history (paid or self-accumulated) before promote claims |
+| **HoQR** | Sign G4 kill-drill awareness; keep live capital BLOCKED |
 
 ---
 
 ## Enforcement statement
 
-Functioning paper tests are **insufficient** for production approval. This platform is a **gated research desk** with a strong decision-path skeleton. It is **not** institutionally production-ready until Critical items are remediated and score ≥ 95 with evidence.
+Passing paper tests and having TrueData trial bars is **necessary but not sufficient** for production. Score **68 ≪ 95**. This remains a **gated research desk**. Live order code stays out until the human green-flags after paper gates.
 
-**Next human step unchanged:** chase TrueData **Market Data API** enablement; then continue remediation in priority order above.
+**Next human step:** run daily ops on trading days (holiday-aware); enable Angel MD only when ready; accumulate paper sample; do **not** request live order wiring yet.

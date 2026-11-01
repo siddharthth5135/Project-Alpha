@@ -29,13 +29,13 @@ class Verdict(str, Enum):
 class QualityThresholds:
     """Tolerances. Tight by default; loosened only per-dataset and in writing."""
 
-    max_missing_bar_pct: float = 0.5
-    max_missing_bar_pct_warn: float = 0.05
+    max_missing_bar_pct: float = 0.35
+    max_missing_bar_pct_warn: float = 0.03
     max_duplicate_pct: float = 0.0
-    max_rejected_pct: float = 0.5
-    max_flat_bar_pct: float = 60.0
-    max_zero_volume_pct: float = 20.0
-    max_gap_run_bars: int = 15
+    max_rejected_pct: float = 0.35
+    max_flat_bar_pct: float = 50.0
+    max_zero_volume_pct: float = 15.0
+    max_gap_run_bars: int = 10
     require_verified_calendar: bool = False
 
 

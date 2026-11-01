@@ -1,4 +1,4 @@
-# Market Data Requirements Specification
+bye# Market Data Requirements Specification
 ## Project Alpha / alpha-desk
 
 **Document type:** Technical requirements + vendor RFQ input  

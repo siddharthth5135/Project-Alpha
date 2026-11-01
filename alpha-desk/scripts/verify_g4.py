@@ -48,7 +48,12 @@ def main() -> int:
     )
     checks.add(
         "paper broker assembled (not live)",
-        desk.broker.__class__.__name__ == "PaperBroker",
+        getattr(desk.broker, "inner_class_name", desk.broker.__class__.__name__) == "PaperBroker",
+        getattr(desk.broker, "inner_class_name", desk.broker.__class__.__name__),
+    )
+    checks.add(
+        "direct broker.place is guarded",
+        desk.broker.__class__.__name__ == "BrokerGuard",
         desk.broker.__class__.__name__,
     )
 

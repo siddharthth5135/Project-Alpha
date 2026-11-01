@@ -210,6 +210,36 @@ class TrueDataProvider:
         self.descriptor.require(Capability.CORPORATE_ACTIONS)
         return self._rest.get_corporate_actions(symbol.upper())
 
+    def corporate_actions_range(self, start: date, end: date) -> pd.DataFrame:
+        self.descriptor.require(Capability.CORPORATE_ACTIONS)
+        return self._rest.get_corporate_actions_range(start, end)
+
+    def symbol_name_changes(self, start: date, end: date) -> pd.DataFrame:
+        self.descriptor.require(Capability.SYMBOL_MASTER)
+        return self._rest.get_symbol_name_changes(start, end)
+
+    def indices(self) -> pd.DataFrame:
+        self.descriptor.require(Capability.INDEX_CONSTITUENTS)
+        return self._rest.get_indices()
+
+    def bhavcopy(self, vendor_segment: str, day: date) -> pd.DataFrame:
+        self.descriptor.require(Capability.BHAVCOPY)
+        return self._rest.get_bhavcopy(vendor_segment, day)
+
+    def fetch_option_ltp_greeks(
+        self, underlying: str, expiry: date, strike: float, right: OptionRight
+    ) -> pd.DataFrame:
+        self.descriptor.require(Capability.OPTION_CHAIN_GREEKS)
+        return self._rest.get_ltp_with_greeks(underlying.upper(), expiry, strike, right)
+
+    def fetch_option_tick_greeks(
+        self, underlying: str, expiry: date, strike: float, right: OptionRight
+    ) -> pd.DataFrame:
+        self.descriptor.require(Capability.HISTORICAL_OPTION_GREEKS)
+        return self._rest.get_tick_history_with_greeks(
+            underlying.upper(), expiry, strike, right
+        )
+
     # -- history ----------------------------------------------------------- #
 
     def fetch_bars(

@@ -19,7 +19,6 @@ import time
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 from pathlib import Path
 
 import pandas as pd
@@ -39,31 +38,13 @@ from alpha_desk.marketdata.errors import (
     SubscriptionLimitError,
     TransportError,
 )
+from alpha_desk.marketdata.events import EventKind, StreamEvent
 from alpha_desk.vendors.truedata.config import TrueDataConfig
 from alpha_desk.vendors.truedata.symbols import TrueDataSymbology
 from alpha_desk.vendors.truedata.transport import RetryPolicy, WsTransport
 
-
-class EventKind(str, Enum):
-    TICK = "tick"
-    BID_ASK = "bid_ask"
-    BAR = "bar"
-    GREEKS = "greeks"
-    TOUCHLINE = "touchline"
-    HEARTBEAT = "heartbeat"
-    MARKET_STATUS = "market_status"
-    CONNECTED = "connected"
-    DISCONNECTED = "disconnected"
-    UNROUTED = "unrouted"
-
-
-@dataclass(frozen=True)
-class StreamEvent:
-    kind: EventKind
-    payload: object
-    received_at: datetime
-    latency_s: float | None = None
-    vendor_token: str = ""
+# Re-export for older imports (td_smoke, tests).
+__all__ = ["EventKind", "StreamEvent", "TrueDataStream", "MessageLayout"]
 
 
 @dataclass(frozen=True)

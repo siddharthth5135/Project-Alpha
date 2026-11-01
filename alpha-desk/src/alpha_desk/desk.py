@@ -27,6 +27,7 @@ from alpha_desk.core.types import Instrument, Mode
 from alpha_desk.costs.india import CostModel
 from alpha_desk.data.warehouse import ParquetWarehouse
 from alpha_desk.execution.base import Broker
+from alpha_desk.execution.guard import BrokerGuard
 from alpha_desk.execution.paper import PaperBroker
 from alpha_desk.execution.rate_limiter import RateLimiter
 from alpha_desk.loss.heuristic import HeuristicLossModel
@@ -36,6 +37,8 @@ from alpha_desk.portfolio.sizer import PortfolioSizer
 from alpha_desk.registry.trial_registry import TrialRegistry
 from alpha_desk.risk.kernel import RiskKernel
 from alpha_desk.risk.killswitch import KillSwitch
+from alpha_desk.risk.persist import load_risk_state, save_risk_state
+from alpha_desk.risk.session_guardian import SessionGuardian
 from alpha_desk.risk.state import RiskState
 
 
@@ -52,14 +55,18 @@ class Desk:
     kernel: RiskKernel
     loss_gate: LossGate
     sizer: PortfolioSizer
-    broker: Broker
+    broker: Broker  # Guaranteed BrokerGuard in build_desk (no direct place)
     audit: AuditLog
     warehouse: ParquetWarehouse
     order_path: OrderPath
     state: RiskState
+    guardian: SessionGuardian
 
     def registry(self) -> TrialRegistry:
         return TrialRegistry(self.settings.data_root / "registry" / "trials.sqlite")
+
+    def save_state(self) -> None:
+        save_risk_state(self.state, self.settings.data_root)
 
     def preflight(self) -> list[str]:
         """Facts a human should see before trusting a session. Empty list = clean."""
@@ -112,13 +119,22 @@ def build_desk(
                 "live mode requires an explicitly constructed broker; "
                 "build_desk will not create one for you"
             )
-        broker = PaperBroker(cost_model, instruments, RateLimiter(max_calls=5, per_seconds=1.0))
-        broker.connect()
+        inner = PaperBroker(cost_model, instruments, RateLimiter(max_calls=5, per_seconds=1.0))
+        inner.connect()
+        broker = BrokerGuard(inner)
+    elif not isinstance(broker, BrokerGuard):
+        # Tests may pass a raw PaperBroker into OrderPath via fixtures; if they
+        # pass it as desk broker, wrap so desk.broker.place cannot skip the kernel.
+        broker = BrokerGuard(broker)
 
-    state = RiskState.fresh(
-        equity if equity is not None else risk_config.capital.account_equity_inr
+    # OrderPath must hold the *inner* executable broker, not the guard.
+    exec_broker = broker._inner if isinstance(broker, BrokerGuard) else broker
+    state = load_risk_state(
+        settings.data_root,
+        fallback_equity=equity if equity is not None else risk_config.capital.account_equity_inr,
     )
-    path = OrderPath(sizer, gate, kernel, broker, audit)
+    path = OrderPath(sizer, gate, kernel, exec_broker, audit)
+    guardian = SessionGuardian(risk_config, settings.data_root)
 
     audit.write(
         AuditEvent.CONFIG_LOADED,
@@ -133,7 +149,7 @@ def build_desk(
         equity=state.current_equity,
     )
 
-    return Desk(
+    desk = Desk(
         settings=settings,
         risk_config=risk_config,
         cost_config=cost_config,
@@ -150,4 +166,7 @@ def build_desk(
         warehouse=ParquetWarehouse(settings.data_root),
         order_path=path,
         state=state,
+        guardian=guardian,
     )
+    desk.save_state()
+    return desk

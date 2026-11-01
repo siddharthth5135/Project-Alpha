@@ -157,23 +157,19 @@ def test_angelone_refuses_to_construct_in_paper_mode(tmp_path):
     settings = AppSettings(
         mode=Mode.PAPER, data_root=tmp_path, artifact_root=tmp_path, log_root=tmp_path
     )
-    with pytest.raises(BrokerError, match="Live stays OFF"):
+    with pytest.raises(BrokerError, match="DISABLED|paper-only"):
         AngelOneBroker(settings)
 
 
-def test_angelone_refuses_without_credentials(tmp_path):
+def test_angelone_refuses_even_if_someone_forces_live_fields(tmp_path):
+    # LIVE mode cannot be constructed via AppSettings anymore; broker still hard-refuses.
     settings = AppSettings(
-        mode=Mode.LIVE,
-        data_root=tmp_path,
-        artifact_root=tmp_path,
-        log_root=tmp_path,
-        live_go_signature="GO-LIVE 2026-07-25 HoQR",
+        mode=Mode.PAPER, data_root=tmp_path, artifact_root=tmp_path, log_root=tmp_path
     )
-    with pytest.raises(BrokerError, match="credentials"):
+    with pytest.raises(BrokerError, match="DISABLED|paper-only"):
         AngelOneBroker(settings)
 
 
 def test_angelone_publishes_a_preflight_checklist():
     checklist = AngelOneBroker.preflight_checklist()
-    assert any("static IP" in item.lower() or "Static IP" in item for item in checklist)
-    assert any("GO signature" in item for item in checklist)
+    assert any("PAPER-ONLY" in item for item in checklist)

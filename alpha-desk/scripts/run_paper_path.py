@@ -102,6 +102,10 @@ def main() -> int:
     print(f"  strategy      : {rules_cfg.strategy_id}")
 
     decision = engine.on_bar(window, symbol=args.symbol, state=desk.state, now=now)
+    # Actuate flatten policies + persist equity/positions
+    act = desk.guardian.tick(now=now, state=desk.state, order_path=desk.order_path, feed_ok=True)
+    desk.save_state()
+
     print(f"\n  signal        : {decision.signal}")
     print(f"  alpha_score   : {decision.alpha_score:.6f}")
     print(f"  reason        : {decision.reason}")
@@ -109,6 +113,10 @@ def main() -> int:
     print(f"  detail        : {decision.detail}")
     print(f"  fill_price    : {decision.fill_price}")
     print(f"  open positions: {desk.state.open_position_count}")
+    print(f"  equity        : {desk.state.current_equity:.2f}")
+    print(f"  day_pnl       : {desk.state.day_pnl:.2f}")
+    if act.flattened:
+        print(f"  guardian      : flattened reason={act.reason}")
     print(f"  audit dir     : {desk.audit.path.parent}")
     print()
     return 0

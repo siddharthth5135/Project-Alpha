@@ -49,10 +49,18 @@ def get_provider(name: str, **kwargs: Any) -> Any:
 
 
 def _install_builtins() -> None:
+    if "angelone" not in _FACTORIES:
+        _FACTORIES["angelone"] = _angelone_factory
     if "truedata" not in _FACTORIES:
         _FACTORIES["truedata"] = _truedata_factory
     if "truedata_mock" not in _FACTORIES:
         _FACTORIES["truedata_mock"] = _truedata_mock_factory
+
+
+def _angelone_factory(**kwargs: Any) -> Any:
+    from alpha_desk.vendors.angelone.provider import AngelOneProvider
+
+    return AngelOneProvider.from_env(**kwargs)
 
 
 def _truedata_factory(**kwargs: Any) -> Any:

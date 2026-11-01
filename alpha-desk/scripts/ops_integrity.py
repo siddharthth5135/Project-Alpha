@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -20,11 +21,26 @@ from alpha_desk.config.settings import load_settings  # noqa: E402
 from alpha_desk.data.store import MarketStore  # noqa: E402
 from alpha_desk.marketdata.contracts import IST, BarInterval, contract_from_id  # noqa: E402
 
-DEFAULT_CONTRACTS = (
+# Angel SoR: desk-rolled continuous (Angel has no vendor continuous) + front month.
+DEFAULT_CONTRACTS_ANGELONE = (
+    "NSE:FUT:NIFTY:CONT-desk_rolled",
+    "NSE:FUT:BANKNIFTY:CONT-desk_rolled",
+    "NSE:FUT:NIFTY:2026-09-29",
+)
+# Legacy TrueData partitions (offline only — do not use for live SoR).
+DEFAULT_CONTRACTS_TRUEDATA = (
     "NSE:FUT:NIFTY:2026-09-29",
     "NSE:FUT:NIFTY:CONT-vendor_spliced",
     "NSE:FUT:BANKNIFTY:CONT-vendor_spliced",
 )
+
+
+def _load_dotenv() -> None:
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    load_dotenv(REPO / ".env", override=False)
 
 
 def main() -> int:
@@ -32,25 +48,53 @@ def main() -> int:
     parser.add_argument("--interval", default="15m")
     parser.add_argument("--max-age-hours", type=float, default=36.0)
     parser.add_argument(
+        "--source",
+        default="",
+        help="store source (default: MARKET_DATA_PROVIDER or angelone)",
+    )
+    parser.add_argument(
         "--contracts",
-        default=",".join(DEFAULT_CONTRACTS),
-        help="comma-separated contract_ids",
+        default="",
+        help="comma-separated contract_ids (defaults depend on --source)",
     )
     parser.add_argument("--data-root", type=Path, default=None)
+    parser.add_argument(
+        "--soft",
+        action="store_true",
+        help="warn on failure but exit 0 (first-day / weekend bootstrap)",
+    )
     args = parser.parse_args()
 
+    _load_dotenv()
     settings = load_settings()
+    source = (
+        args.source.strip()
+        or os.environ.get("MARKET_DATA_PROVIDER", "").strip()
+        or "angelone"
+    ).lower()
+    if args.contracts.strip():
+        contracts = [c.strip() for c in args.contracts.split(",") if c.strip()]
+    elif source == "truedata":
+        contracts = list(DEFAULT_CONTRACTS_TRUEDATA)
+    else:
+        contracts = list(DEFAULT_CONTRACTS_ANGELONE)
+
     store = MarketStore(args.data_root or settings.data_root)
     interval = BarInterval(args.interval)
     now = datetime.now(ZoneInfo(IST))
-    report: dict[str, object] = {"checked_at": now.isoformat(), "interval": interval.value, "contracts": {}}
+    report: dict[str, object] = {
+        "checked_at": now.isoformat(),
+        "interval": interval.value,
+        "source": source,
+        "contracts": {},
+    }
     failures: list[str] = []
 
-    for raw in [c.strip() for c in args.contracts.split(",") if c.strip()]:
+    for raw in contracts:
         contract = contract_from_id(raw)
         try:
             frame = store.read_bars(
-                source="truedata",
+                source=source,
                 contract=contract,
                 interval=interval.value,
             )
@@ -86,6 +130,9 @@ def main() -> int:
         print("INTEGRITY FAIL:")
         for line in failures:
             print(f"  - {line}")
+        if args.soft:
+            print("SOFT: treating as warn (exit 0)")
+            return 0
         return 2
     print("INTEGRITY OK")
     return 0

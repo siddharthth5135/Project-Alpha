@@ -92,8 +92,8 @@ def test_random_kfold_promote_is_refused():
         StrategySpec.model_validate(raw)
 
 
-def test_live_mode_requires_go_signature(tmp_path: Path):
-    with pytest.raises(ValueError, match="ALPHA_LIVE_GO_SIGNATURE"):
+def test_live_mode_refused_in_paper_only_phase(tmp_path: Path):
+    with pytest.raises(ValueError, match="paper-only"):
         AppSettings(
             mode=Mode.LIVE, data_root=tmp_path, artifact_root=tmp_path, log_root=tmp_path
         )

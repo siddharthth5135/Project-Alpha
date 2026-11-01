@@ -361,7 +361,7 @@ class IngestionService:
         interrupt, so a captured session is never lost because the operator hit
         Ctrl-C.
         """
-        from alpha_desk.vendors.truedata.stream import EventKind  # local: adapter enum
+        from alpha_desk.marketdata.events import EventKind
 
         session = LiveRecording(started_at=pd.Timestamp.now(tz=IST).to_pydatetime())
         by_id = {c.contract_id: c for c in contracts}

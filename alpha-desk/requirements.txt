@@ -26,3 +26,4 @@ pytest-cov==6.2.1
 # TrueData adapter transports (not the vendor SDK — we speak REST/WS ourselves)
 requests==2.32.4
 websocket-client==1.8.0
+pyotp==2.9.0

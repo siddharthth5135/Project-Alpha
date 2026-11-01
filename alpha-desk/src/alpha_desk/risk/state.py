@@ -110,7 +110,15 @@ class RiskState:
         return sum(1 for p in self.positions.values() if p.correlation_cluster == cluster)
 
     def register_fill(self, fill: Fill, instrument: Instrument | None = None) -> None:
+        """Update positions and mark equity from realized PnL + costs.
+
+        Closing/reducing an opposite-side fill realizes price PnL. Every fill
+        also deducts ``fill.cost_inr`` so daily-loss / drawdown halts can fire
+        from the paper (and later live) book, not only from manual ``apply_pnl``.
+        """
         existing = self.positions.get(fill.symbol)
+        realized = 0.0
+
         if existing is None:
             self.positions[fill.symbol] = Position(
                 symbol=fill.symbol,
@@ -131,10 +139,21 @@ class RiskState:
             existing.quantity = total_qty
             existing.lots += fill.lots
         else:
+            closed_qty = min(existing.quantity, fill.quantity)
+            if existing.side is Side.BUY:
+                realized = (fill.price - existing.avg_price) * closed_qty
+            else:
+                realized = (existing.avg_price - fill.price) * closed_qty
             existing.quantity -= fill.quantity
             existing.lots -= fill.lots
             if existing.quantity <= 0:
                 del self.positions[fill.symbol]
+            elif instrument is not None:
+                existing.correlation_cluster = instrument.correlation_cluster
+                existing.margin_pct = instrument.margin_pct
+
+        # Costs always hit equity; realized price PnL on closes/reduces.
+        self.apply_pnl(realized - float(fill.cost_inr or 0.0))
         self.trades_today += 1
 
     # -- halts -------------------------------------------------------- #

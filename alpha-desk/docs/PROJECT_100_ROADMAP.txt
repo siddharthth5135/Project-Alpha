@@ -4,6 +4,7 @@
 **Created:** 2026-09-09  
 **Plain-text twin (easy reading / sharing):** `docs/PROJECT_100_ROADMAP.txt`  
 **Strategy / market-logic brief for analysts:** `docs/PROJECT_100_Strategies.txt`  
+**Technical paid-day readiness (no feature debt):** `docs/TECHNICAL_PAID_DAY_READY.txt`  
 **Owner principle:** Consistency and accuracy over speed. Real-money readiness requires proof, not hope.  
 **Capital rule:** Zero rupees of live capital until Gate **G-LIVE** is explicitly signed. Paper only until then.
 

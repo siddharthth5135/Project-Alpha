@@ -1,0 +1,127 @@
+================================================================================
+TECHNICAL PAID-DAY READINESS
+File: docs/TECHNICAL_PAID_DAY_READY.txt
+Purpose: During TrueData TRIAL, finish ALL technical development so that when
+         the PAID plan starts, work is: set .env depths → smoke → probe →
+         backfill → live → train. Runtime bugs OK to fix then; NEW FEATURE
+         development should NOT be required for Phase-1 futures path OR for
+         near-future sleeves we already scaffolded (options/greeks/corp/MCX).
+Related: PROJECT_100_ROADMAP.txt (gates / money), PROJECT_100_Strategies.txt
+================================================================================
+Status: ACTIVE — trial focus document (through 2026-09-13 and until paid day)
+Created: 2026-09-10
+================================================================================
+
+
+0) AGREEMENT WITH OWNER
+-----------------------
+- Promote / live-capital blocks BY DESIGN stay. Those are governance gates,
+  not missing TrueData code.
+- Trial goal = harvest API data + make the DESK technically complete.
+- Paid day goal = config + run + deep history, not a second build sprint.
+- Angel free history is NOT a substitute for paid MD depth (expired F&O / 15m
+  years). Angel remains execution broker path.
+
+
+1) WILL PAID TRUEDATA BE ENOUGH? (CURRENT + PROJECTED)
+------------------------------------------------------
+YES for our locked + near-future desk IF the paid quote includes:
+
+MUST (Phase 1 index futures intraday)
+  [ ] ≥ 3 years of 15m NFO futures (prefer 5–7 years) including EXPIRED months
+  [ ] ≥ several months of 1m for label/risk windows
+  [ ] Live WS (trades/touchline/bars) with enough concurrent symbols (≥50 OK)
+  [ ] Symbol master + expiry list ongoing
+  [ ] License: local storage + algo research/paper (and later live)
+
+SHOULD (near future, already scaffolded in code)
+  [ ] Option chain + greeks (analytics/greeks hosts) when Sleeve B starts
+  [ ] Tick history depth as quoted
+  [ ] Corporate actions / name changes / index constituents / bhavcopy
+  [ ] MCX/CDS segments if we expand (adapter segment map already exists)
+
+ASK SALES TO CONFIRM IN WRITING (copy into DECISION.md)
+  - Exact days/years for 1m and 15m on NFO
+  - Expired contract history: YES/NO
+  - Continuous symbols (e.g. NIFTY-I): available?
+  - Concurrent live symbols + WS port
+  - Greeks / analytics included or add-on price
+  - Storage / redistribution limits
+
+
+2) TECHNICAL SURFACE — BUILT vs LEFT FOR TRIAL
+----------------------------------------------
+ALREADY BUILT (paid day = use, don't reinvent)
+  - marketdata port (contracts, calendar, normalize, quality, registry)
+  - TrueData REST: bars, ticks, master, expiries, chain±greeks, LTP±greeks,
+    tick+greeks, corp actions, name changes, indices, constituents, bhavcopy,
+    LTP bulk
+  - TrueData WS: trade, bidask, bars, greeks, touchline, status, reconnect
+  - Symbology: compact + numeric + monthly FUT + master-first
+  - Plan-depth clamp + chunked backfill
+  - Store: versioned parquet, quarantine, manifests
+  - Ingest: masters, bars, ticks, option chain, live recorder, universe, ML bridge
+  - Ops scheduler scripts + integrity heartbeat
+  - Train from promoted store
+
+FINISH DURING TRIAL (so paid day has no feature sprint)
+  [x] Ops hardened: ExitCode null≠0; EOD days from env; live unbuffered; EOD runs gapfill+reference
+  [x] Reference sync script: corp/bhavcopy/indices/name-changes → store (td_reference_sync.py)
+  [x] Session gap-fill script: REST fill bars after live / outage (td_gapfill.py)
+  [x] Provider pass-throughs for corp range, bhavcopy, name changes, indices, greeks LTP/ticks
+  [x] .env.example: ALL history_days intervals + paid placeholders
+  [x] Paid-day runbook steps frozen in this file §3
+  [ ] Maximize trial archive (live + backfill within trial depth) — ongoing each session
+  [ ] Trial DECISION.md + sales checklist filled — before 2026-09-13
+
+NOTE: Some reference endpoints return 404 on TRIAL hosts (getIndices, getCorpActionRange,
+getSymbolNameChange). Per-symbol corp actions + index constituents DO work. Paid plan may
+enable the 404 endpoints; code paths already exist — no new development when they light up.
+
+EXPLICITLY NOT REQUIRED BEFORE PAID (governance / later sleeves)
+  - Promote eligibility true
+  - Live order go-signature
+  - Angel as market-data SoR / feed parity dashboard
+  - Desk-rolled continuous as only SoR (vendor continuous OK for P1; desk roll is enhancement)
+  - Full MCX/BSE production strategy
+
+
+3) PAID-DAY RUNBOOK (NO NEW DEVELOPMENT)
+----------------------------------------
+1. Update .env: USER/PASSWORD, WS_PORT, MAX_LIVE_SYMBOLS, REST_RPM,
+   HISTORY_DAYS_* from probe + sales quote (honest numbers).
+2. python scripts/td_smoke.py
+3. python scripts/td_probe.py   → confirm depth ≥ quote; save artifacts
+4. Backfill (resumable):
+     futures 15m --days <plan>
+     futures 1m  --days <plan_1m>
+     index 1d    --days <plan_eod>
+     options 15m narrow ATM if entitled
+5. python scripts/td_reference_sync.py   (corp/bhav/masters side archive)
+6. Live: scheduler or td_record_live.py; after session td_gapfill.py
+7. calendar_learn.py if EOD landed
+8. train_from_store.py --then-train
+9. validate_models.py (promote still may FAIL — that is gate G3, not missing API code)
+
+
+4) SUCCESS CRITERIA — "TECHNICALLY COMPLETE"
+--------------------------------------------
+  [ ] Every TrueData endpoint we care about has: REST client method +
+      provider or sync script path + store landing place
+  [ ] Live capture survives reconnect; integrity script exists
+  [ ] Gap-fill exists for same-day holes
+  [ ] Changing plan depth is .env only (no code change)
+  [ ] Adding greeks entitlement is .env flag only
+  [ ] Preflight + smoke + mock tests green
+  [ ] Paid-day runbook above executable without inventing new modules
+
+
+5) CHANGELOG
+------------
+2026-09-10  Document created; trial focus = technical completeness for paid day.
+2026-09-10  Added td_reference_sync.py, td_gapfill.py; provider reference/greeks APIs;
+            ops EOD uses plan M15 days + gapfill + reference; .env.example expanded.
+
+================================================================================
+END
+================================================================================

@@ -401,16 +401,18 @@ class AppSettings(_Base):
 
     @model_validator(mode="after")
     def _live_needs_signature(self) -> "AppSettings":
-        if self.mode is Mode.LIVE and not self.live_go_signature.strip():
+        if self.mode is Mode.LIVE:
             raise ValueError(
-                "live mode requires ALPHA_LIVE_GO_SIGNATURE (HoQR Gate G5 sign-off). "
-                "Live stays OFF."
+                "ALPHA_MODE=live is refused in paper-only phase. "
+                "Live ORDER trading stays OFF until you manually re-enable later. "
+                "Keep ALPHA_MODE=paper."
             )
         return self
 
     @property
     def live_enabled(self) -> bool:
-        return self.mode is Mode.LIVE and bool(self.live_go_signature.strip())
+        # Paper-only phase: never true.
+        return False
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
