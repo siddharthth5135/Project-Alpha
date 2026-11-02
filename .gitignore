@@ -55,3 +55,7 @@ Thumbs.db
 !alpha-desk/src/alpha_desk/data/**
 !alpha-desk/src/alpha_desk/audit/
 !alpha-desk/src/alpha_desk/audit/**
+
+# Re-ignore bytecode under whitelisted trees
+alpha-desk/src/alpha_desk/data/**/__pycache__/
+alpha-desk/src/alpha_desk/audit/**/__pycache__/
