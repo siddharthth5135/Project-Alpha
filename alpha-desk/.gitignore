@@ -8,10 +8,11 @@ secrets/
 credentials*.json
 
 # --- data & artifacts (live on D:, not in git) ---
-data/
-artifacts/
-logs/
-audit/
+# Anchored to alpha-desk package root so src/alpha_desk/data|audit stay trackable.
+/data/
+/artifacts/
+/logs/
+/audit/
 *.parquet
 *.duckdb
 *.sqlite
@@ -39,3 +40,11 @@ htmlcov/
 Thumbs.db
 .DS_Store
 .idea/
+
+# Whitelist source packages
+!src/alpha_desk/data/
+!src/alpha_desk/data/**
+!src/alpha_desk/audit/
+!src/alpha_desk/audit/**
+!alpha-desk/src/alpha_desk/data/**
+!alpha-desk/src/alpha_desk/audit/**

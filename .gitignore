@@ -7,11 +7,16 @@
 secrets/
 credentials*.json
 
-# --- market data & runtime (local only; TrueData license) ---
-**/data/
-**/artifacts/
-**/logs/
-**/audit/
+# --- market data & runtime (repo-root / alpha-desk runtime only) ---
+# Anchored so src/alpha_desk/data and src/alpha_desk/audit stay trackable.
+/data/
+/artifacts/
+/logs/
+/audit/
+alpha-desk/data/
+alpha-desk/artifacts/
+alpha-desk/logs/
+alpha-desk/audit/
 *.parquet
 *.duckdb
 *.sqlite
@@ -23,7 +28,7 @@ _tmp_backfill/
 # --- vendor NDA / local API extracts ---
 TD_API_Documents.zip
 _td_docs_extract/
-**/_td_docs_extract/
+/**/_td_docs_extract/
 
 # --- python ---
 .venv/
@@ -44,3 +49,9 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Whitelist source packages (never treat these as runtime dirs)
+!alpha-desk/src/alpha_desk/data/
+!alpha-desk/src/alpha_desk/data/**
+!alpha-desk/src/alpha_desk/audit/
+!alpha-desk/src/alpha_desk/audit/**
